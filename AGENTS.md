@@ -4,7 +4,7 @@
 
 WatermarkMe is a privacy-first document watermarking web application.
 
-Read README.md before implementing any feature.
+Read README.md and MVP_BUILD_SPEC.md before implementing any feature.
 
 ## Role
 
@@ -38,7 +38,7 @@ Prioritize:
 
 Before modifying code:
 
-1. Read README.md.
+1. Read README.md and MVP_BUILD_SPEC.md.
 2. Inspect the existing implementation.
 3. Identify reusable components.
 4. Check existing dependencies.
