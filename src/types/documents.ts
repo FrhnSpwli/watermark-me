@@ -25,3 +25,17 @@ export interface DocumentRecord {
 }
 
 export type DocumentKind = 'image' | 'pdf'
+
+export type DocumentUploadMode = 'separate' | 'combined'
+
+export interface DocumentUploadFailure {
+  fileName: string
+  message: string
+}
+
+export interface DocumentUploadBatchResult {
+  documents: DocumentRecord[]
+  failures: DocumentUploadFailure[]
+}
+
+export type SourceMoveDirection = 'up' | 'down'

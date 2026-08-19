@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/ui/PageHeader'
 import { RouteLoadingScreen } from '../components/ui/RouteLoadingScreen'
@@ -9,8 +9,12 @@ import {
   getDocument,
   getDocumentErrorMessage,
   renameDocument,
+  addDocumentSource,
+  removeDocumentSource,
+  reorderDocumentSources,
+  validateDocumentFile,
 } from '../services/documents'
-import type { DocumentRecord } from '../types/documents'
+import type { DocumentFileRecord, DocumentRecord } from '../types/documents'
 import { formatDocumentDate, formatFileSize } from '../utils/format'
 
 function getTypeLabel(document: DocumentRecord) {
@@ -43,6 +47,9 @@ export function DocumentDetailPage() {
   const [isCreatingAccess, setIsCreatingAccess] = useState(false)
   const [accessError, setAccessError] = useState<string | null>(null)
   const [accessUrl, setAccessUrl] = useState<string | null>(null)
+  const [accessSourceId, setAccessSourceId] = useState<string | null>(null)
+  const [sourceActionId, setSourceActionId] = useState<string | null>(null)
+  const [sourceError, setSourceError] = useState<string | null>(null)
 
   const loadDocument = useCallback(async () => {
     if (!documentId) {
@@ -176,6 +183,7 @@ export function DocumentDetailPage() {
     setIsCreatingAccess(true)
     setAccessError(null)
     setAccessUrl(null)
+    setAccessSourceId(null)
 
     if (accessTimer.current !== null) {
       window.clearTimeout(accessTimer.current)
@@ -193,6 +201,102 @@ export function DocumentDetailPage() {
       )
     } finally {
       setIsCreatingAccess(false)
+    }
+  }
+
+  const handleCreateSourceAccess = async (sourceId: string) => {
+    if (!document || isCreatingAccess) {
+      return
+    }
+
+    setIsCreatingAccess(true)
+    setAccessError(null)
+    setAccessUrl(null)
+    setAccessSourceId(null)
+
+    if (accessTimer.current !== null) {
+      window.clearTimeout(accessTimer.current)
+    }
+
+    try {
+      setAccessUrl(await createDocumentAccessUrl(document.id, sourceId))
+      setAccessSourceId(sourceId)
+      accessTimer.current = window.setTimeout(() => {
+        setAccessUrl(null)
+        setAccessSourceId(null)
+        accessTimer.current = null
+      }, DOCUMENT_ACCESS_SECONDS * 1000)
+    } catch (error) {
+      setAccessError(
+        getDocumentErrorMessage(error, 'A private source access link could not be created.'),
+      )
+    } finally {
+      setIsCreatingAccess(false)
+    }
+  }
+
+  const handleAddSource = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!document || !file || sourceActionId) {
+      return
+    }
+
+    setSourceActionId('add')
+    setSourceError(null)
+
+    try {
+      validateDocumentFile(file)
+      setDocument(await addDocumentSource(document.id, file))
+      setActionMessage(`${file.name} was added without changing existing originals.`)
+    } catch (error) {
+      setSourceError(getDocumentErrorMessage(error, 'The source could not be added.'))
+    } finally {
+      setSourceActionId(null)
+    }
+  }
+
+  const handleMoveSource = async (sourceId: string, direction: 'up' | 'down') => {
+    if (!document || sourceActionId) {
+      return
+    }
+
+    setSourceActionId(sourceId)
+    setSourceError(null)
+
+    try {
+      setDocument(await reorderDocumentSources(document.id, sourceId, direction))
+    } catch (error) {
+      setSourceError(getDocumentErrorMessage(error, 'The source order could not be saved.'))
+    } finally {
+      setSourceActionId(null)
+    }
+  }
+
+  const handleRemoveSource = async (source: DocumentFileRecord) => {
+    if (!document || sourceActionId || (document.files?.length ?? 0) <= 1) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Remove "${source.original_name}" from ${document.name}?\n\nOnly this original source will be permanently deleted.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSourceActionId(source.id)
+    setSourceError(null)
+
+    try {
+      setDocument(await removeDocumentSource(document.id, source.id))
+      setActionMessage(`${source.original_name} was removed from this document.`)
+    } catch (error) {
+      setSourceError(getDocumentErrorMessage(error, 'The source could not be removed.'))
+    } finally {
+      setSourceActionId(null)
     }
   }
 
@@ -227,10 +331,12 @@ export function DocumentDetailPage() {
     )
   }
 
+  const sources = document.files ?? []
   const canWatermark =
-    document.mime_type === 'image/jpeg' ||
-    document.mime_type === 'image/png' ||
-    document.mime_type === 'application/pdf'
+    sources.length === 1 &&
+    (document.mime_type === 'image/jpeg' ||
+      document.mime_type === 'image/png' ||
+      document.mime_type === 'application/pdf')
 
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
@@ -274,6 +380,89 @@ export function DocumentDetailPage() {
               </div>
             ))}
           </dl>
+
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-bold text-slate-950">Sources ({sources.length})</h2>
+                <p className="mt-1 text-sm text-slate-500">Original files are immutable and remain privately stored.</p>
+              </div>
+              <label className="inline-flex cursor-pointer justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">
+                {sourceActionId === 'add' ? 'Adding…' : 'Add source'}
+                <input
+                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                  className="sr-only"
+                  disabled={Boolean(sourceActionId) || isDeleting}
+                  onChange={handleAddSource}
+                  type="file"
+                />
+              </label>
+            </div>
+            <ol className="mt-5 space-y-3">
+              {sources.map((source, index) => (
+                <li className="rounded-xl border border-slate-100 bg-slate-50 p-4" key={source.id}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">{index + 1}. {source.original_name}</p>
+                      <p className="mt-1 break-all text-sm text-slate-500">
+                        {source.mime_type} · {formatFileSize(source.file_size)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <button
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        disabled={Boolean(sourceActionId) || index === 0 || isDeleting}
+                        onClick={() => handleMoveSource(source.id, 'up')}
+                        type="button"
+                      >
+                        Move up
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        disabled={Boolean(sourceActionId) || index === sources.length - 1 || isDeleting}
+                        onClick={() => handleMoveSource(source.id, 'down')}
+                        type="button"
+                      >
+                        Move down
+                      </button>
+                      <button
+                        className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                        disabled={Boolean(sourceActionId) || sources.length <= 1 || isDeleting}
+                        onClick={() => void handleRemoveSource(source)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-indigo-300"
+                        disabled={isCreatingAccess || isDeleting}
+                        onClick={() => void handleCreateSourceAccess(source.id)}
+                        type="button"
+                      >
+                        View source
+                      </button>
+                    </div>
+                  </div>
+                  {accessUrl && accessSourceId === source.id ? (
+                    <a
+                      className="mt-3 inline-flex text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
+                      href={accessUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open source · available for 60 seconds
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+            {sourceError ? (
+              <p className="mt-4 text-sm leading-6 text-red-700" role="alert">{sourceError}</p>
+            ) : null}
+            {accessError ? (
+              <p className="mt-4 text-sm leading-6 text-red-700" role="alert">{accessError}</p>
+            ) : null}
+          </section>
         </div>
 
         <aside className="space-y-4" aria-label="Document actions">
@@ -291,12 +480,14 @@ export function DocumentDetailPage() {
               </Link>
             ) : (
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                This document type is not supported by the watermark editor.
+                {sources.length > 1
+                  ? 'Watermarking this multi-source document will be available after the composer phase.'
+                  : 'This document type is not supported by the watermark editor.'}
               </p>
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {sources.length === 1 ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-950">Private original</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Open the stored original in a new tab. Access expires automatically
@@ -325,7 +516,7 @@ export function DocumentDetailPage() {
                 {accessError}
               </p>
             ) : null}
-          </section>
+          </section> : null}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-950">Rename</h2>
