@@ -1,45 +1,55 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   getDocumentErrorMessage,
-  uploadDocument,
+  uploadDocuments,
   validateDocumentFile,
 } from '../../services/documents'
-import type { DocumentRecord } from '../../types/documents'
+import type { DocumentRecord, DocumentUploadMode } from '../../types/documents'
 import { formatFileSize } from '../../utils/format'
 
 interface UploadDocumentPanelProps {
   onClose: () => void
-  onUploaded: (document: DocumentRecord) => void
+  onUploaded: (documents: DocumentRecord[]) => void
 }
 
 export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadMode, setUploadMode] = useState<DocumentUploadMode>('separate')
+  const [combinedName, setCombinedName] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null
-    setSelectedFile(null)
+    const files = Array.from(event.target.files ?? [])
+    setSelectedFiles([])
     setValidationError(null)
     setSubmissionError(null)
     setSuccessMessage(null)
 
-    if (!file) {
+    if (files.length === 0) {
       return
     }
 
-    try {
-      validateDocumentFile(file)
-      setSelectedFile(file)
-    } catch (error) {
-      setValidationError(
-        getDocumentErrorMessage(error, 'The selected file is not supported.'),
-      )
+    const invalidFiles = files.flatMap((file) => {
+      try {
+        validateDocumentFile(file)
+        return []
+      } catch (error) {
+        return [`${file.name}: ${getDocumentErrorMessage(error, 'unsupported file')}`]
+      }
+    })
+
+    if (invalidFiles.length > 0) {
+      setValidationError(invalidFiles.join(' '))
       event.target.value = ''
+      return
     }
+
+    setSelectedFiles(files)
+    setCombinedName(files[0].name.replace(/\.[^.]+$/, ''))
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -49,8 +59,13 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
       return
     }
 
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       setValidationError('Choose a document before uploading.')
+      return
+    }
+
+    if (selectedFiles.length > 1 && uploadMode === 'combined' && !combinedName.trim()) {
+      setValidationError('Enter a name for the combined document.')
       return
     }
 
@@ -59,13 +74,29 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
     setSuccessMessage(null)
 
     try {
-      const document = await uploadDocument(selectedFile)
-      onUploaded(document)
-      setSuccessMessage(`${document.name} was uploaded securely.`)
-      setSelectedFile(null)
+      const result = await uploadDocuments(
+        selectedFiles,
+        selectedFiles.length === 1 ? 'separate' : uploadMode,
+        combinedName,
+      )
+      onUploaded(result.documents)
+      setSuccessMessage(
+        result.failures.length > 0
+          ? `${result.documents.length} file(s) uploaded. ${result.failures.length} file(s) failed.`
+          : result.documents.length === 1
+            ? `${result.documents[0].name} was uploaded securely.`
+            : `${result.documents.length} documents were uploaded securely.`,
+      )
+      setSelectedFiles([])
 
       if (inputRef.current) {
         inputRef.current.value = ''
+      }
+
+      if (result.failures.length > 0) {
+        setSubmissionError(
+          result.failures.map((failure) => `${failure.fileName}: ${failure.message}`).join(' '),
+        )
       }
     } catch (error) {
       setSubmissionError(
@@ -88,7 +119,7 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
             Upload document
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Choose a supported original to store in your private document library.
+            Choose one file for a simple upload, or select multiple files and decide whether they belong together.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
             <span className="rounded-full bg-slate-100 px-2.5 py-1">JPG / JPEG</span>
@@ -109,7 +140,7 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
 
       <form className="mt-6" noValidate onSubmit={handleSubmit}>
         <label className="block text-sm font-semibold text-slate-800" htmlFor="document-file">
-          Document file
+          Document file(s)
         </label>
         <input
           accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
@@ -118,6 +149,7 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
           className="mt-2 block w-full rounded-xl border border-slate-300 bg-white text-sm text-slate-600 shadow-sm outline-none file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-3 file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100"
           disabled={isUploading}
           id="document-file"
+          multiple
           onChange={handleFileChange}
           ref={inputRef}
           type="file"
@@ -126,16 +158,63 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
           The original will be stored in your private account storage.
         </p>
 
-        {selectedFile ? (
+        {selectedFiles.length > 0 ? (
           <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-              Selected file
+              Selected files ({selectedFiles.length})
             </p>
-            <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <span className="break-all font-medium text-slate-800">{selectedFile.name}</span>
-              <span className="shrink-0 text-slate-500">{formatFileSize(selectedFile.size)}</span>
-            </div>
+            <ul className="mt-2 space-y-2">
+              {selectedFiles.map((file) => (
+                <li className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" key={`${file.name}-${file.size}`}>
+                  <span className="break-all font-medium text-slate-800">{file.name}</span>
+                  <span className="shrink-0 text-slate-500">{formatFileSize(file.size)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+        ) : null}
+
+        {selectedFiles.length > 1 ? (
+          <fieldset className="mt-5 rounded-xl border border-slate-200 p-4">
+            <legend className="px-1 text-sm font-semibold text-slate-800">How should these files be uploaded?</legend>
+            <label className="mt-3 flex gap-3 text-sm text-slate-700">
+              <input
+                checked={uploadMode === 'separate'}
+                className="mt-0.5 accent-indigo-600"
+                disabled={isUploading}
+                name="upload-mode"
+                onChange={() => setUploadMode('separate')}
+                type="radio"
+              />
+              <span><strong>Create separate documents</strong><br /><span className="text-slate-500">Each file gets its own document.</span></span>
+            </label>
+            <label className="mt-3 flex gap-3 text-sm text-slate-700">
+              <input
+                checked={uploadMode === 'combined'}
+                className="mt-0.5 accent-indigo-600"
+                disabled={isUploading}
+                name="upload-mode"
+                onChange={() => setUploadMode('combined')}
+                type="radio"
+              />
+              <span><strong>Combine into one document</strong><br /><span className="text-slate-500">Keep these source files together.</span></span>
+            </label>
+            {uploadMode === 'combined' ? (
+              <div className="mt-4">
+                <label className="block text-sm font-semibold text-slate-800" htmlFor="combined-document-name">
+                  Logical document name
+                </label>
+                <input
+                  className="mt-2 block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  disabled={isUploading}
+                  id="combined-document-name"
+                  maxLength={255}
+                  onChange={(event) => setCombinedName(event.target.value)}
+                  value={combinedName}
+                />
+              </div>
+            ) : null}
+          </fieldset>
         ) : null}
 
         {validationError ? (
@@ -173,7 +252,7 @@ export function UploadDocumentPanel({ onClose, onUploaded }: UploadDocumentPanel
           </button>
           <button
             className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:bg-indigo-300"
-            disabled={isUploading || !selectedFile}
+            disabled={isUploading || selectedFiles.length === 0}
             type="submit"
           >
             {isUploading ? 'Uploading securely…' : 'Upload document'}

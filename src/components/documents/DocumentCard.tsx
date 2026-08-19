@@ -39,7 +39,10 @@ export function DocumentCard({ document }: DocumentCardProps) {
         {document.name}
       </h3>
       <p className="mt-2 text-sm text-slate-500">
-        {formatFileSize(document.file_size)} · {formatDocumentDate(document.created_at)}
+        {document.files && document.files.length > 1
+          ? `${document.files.length} source files`
+          : formatFileSize(document.file_size)}{' '}
+        · {formatDocumentDate(document.created_at)}
       </p>
 
       <Link

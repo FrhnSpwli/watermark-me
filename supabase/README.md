@@ -34,3 +34,16 @@ legacy `public.documents` row to exactly one source record. The legacy
 The `document_files` table enforces owner access through the parent document's
 `user_id`, while the Storage policy still checks the owner folder and `owner_id`
 for both the legacy path shape and the future nested `USER_ID/DOCUMENT_ID/FILE_ID/original.ext` convention.
+
+Phase 12 adds the migration
+`migrations/20260819000100_phase_12_multi_file_management.sql`. Apply it after
+Phase 11. It permits the compatibility mirror on `documents` to reference a
+nested source path, validates that each source path belongs to its parent
+document, and grants only authenticated owners the compatibility metadata update
+needed when source order changes.
+
+The application creates new source objects at
+`USER_ID/DOCUMENT_ID/FILE_ID/original.ext`. It supports separate multi-file
+uploads, combined logical-document uploads, source addition, source removal, and
+source move-up/move-down management. Generated or converted files are not part
+of this phase.

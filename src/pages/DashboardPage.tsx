@@ -80,12 +80,14 @@ export function DashboardPage() {
     }
   }, [])
 
-  const handleUploaded = (document: DocumentRecord) => {
+  const handleUploaded = (uploadedDocuments: DocumentRecord[]) => {
     setLoadError(null)
     setIsLoading(false)
     setDocuments((current) => [
-      document,
-      ...current.filter((item) => item.id !== document.id),
+      ...uploadedDocuments,
+      ...current.filter(
+        (item) => !uploadedDocuments.some((uploaded) => uploaded.id === item.id),
+      ),
     ])
   }
 
