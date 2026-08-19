@@ -42,6 +42,14 @@ nested source path, validates that each source path belongs to its parent
 document, and grants only authenticated owners the compatibility metadata update
 needed when source order changes.
 
+After Phase 12, apply
+`migrations/20260819000200_phase_12_repair_missing_document_files.sql`. It
+repairs documents created after the Phase 11 one-time backfill but before Phase
+12 source creation became active. The repair adds only the missing
+`document_files` metadata row, reuses the existing legacy Storage path and file
+metadata, and is a no-op for documents that already have a source. It does not
+move, rename, overwrite, upload, or delete any Storage object.
+
 The application creates new source objects at
 `USER_ID/DOCUMENT_ID/FILE_ID/original.ext`. It supports separate multi-file
 uploads, combined logical-document uploads, source addition, source removal, and
