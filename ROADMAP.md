@@ -1,138 +1,81 @@
-# WatermarkMe Development Roadmap
+# WatermarkMe Roadmap
 
-## Phase 1 — Foundation
-Status: Complete
+## v0.1 — Privacy-First Watermarking MVP
 
-- [x] Initialize React + Vite
-- [x] TypeScript
-- [x] Tailwind
-- [x] React Router
-- [x] Supabase client
-- [x] Environment configuration
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 1 | Project Foundation | ✅ Complete |
+| 2 | Authentication | ✅ Complete |
+| 3 | Database & Security | ✅ Complete |
+| 4 | Document Upload | ✅ Complete |
+| 5 | Document Management | ✅ Complete |
+| 6 | Image Watermarking | ✅ Complete |
+| 7 | PDF Watermarking | ✅ Complete |
+| 8 | Purpose-Based Experience | ✅ Complete |
+| 9 | UI Polish | ✅ Complete |
+| 10 | MVP Validation | 🟡 Repository validation complete; final manual browser acceptance remains |
 
-## Phase 2 — Authentication
-Status: Complete (Manually Validated)
+### v0.1 acceptance remaining
 
-- [x] Register
-- [x] Login
-- [x] Logout
-- [x] Session persistence
-- [x] Protected routes
+Manual acceptance should confirm the final browser workflow, representative responsive layouts, and the complete two-account metadata/Storage operation matrix before formally tagging v0.1 as acceptance-complete.
 
-## Phase 3 — Supabase
-Status: Complete (Applied and Cross-Account Isolation Validated)
+---
 
-- [x] profiles table
-- [x] documents table
-- [x] RLS
-- [x] private storage
-- [x] storage policies
+## v0.2 — Document Composer & Converter
 
-## Phase 4 — Document Upload
-Status: Complete (Upload and Cross-Account Isolation Manually Validated)
+**Active specification:** [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md)
 
-- [x] Upload UI
-- [x] File format and size validation
-- [x] Private Storage upload
-- [x] Document metadata insert
-- [x] Upload rollback and error handling
+v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical document model that can contain multiple source files and can be composed, reordered, selectively converted, and passed directly into watermarking without persisting intermediate generated files.
 
-## Phase 5 — Document Management
-Status: Complete
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 11 | Multi-file Architecture & Safe Migration | ✅ Phase 11 repository implementation complete; live Supabase validation remains manual |
+| 12 | Multi-file Upload & Management | Not Started |
+| 13 | Document Composer: Selection, Preview & Reordering | Not Started |
+| 14 | Conversion Engine | Not Started |
+| 15 | Conversion Output UX | Not Started |
+| 16 | Composer/Converter → Watermark Integration | Not Started |
+| 17 | QA, Security & Performance | Not Started |
 
-- [x] Document list/grid
-- [x] Document detail
-- [x] Rename
-- [x] Delete
-- [x] Private original access
-- [x] PDF representation
+### Phase 11 — Multi-file Architecture & Safe Migration
 
-## Phase 6 — Image Watermarking
-Status: Implementation Complete (Live Visual Review Pending)
+Introduce the logical-document/source-file model without moving or breaking existing v0.1 originals. Add reproducible migration, RLS, safe backfill, service/type updates, and compatibility handling. No converter UI.
 
-- [x] Canvas watermark helper
-- [x] Watermark text
-- [x] Purpose and recipient configuration
-- [x] Opacity
-- [x] Rotation
-- [x] Watermark size
-- [x] Position
-- [x] Live image preview
-- [x] Natural-resolution PNG export
+### Phase 12 — Multi-file Upload & Management
 
-### Phase 6.1 — Watermark Visual Refinement
-Status: Implementation Complete (Live Visual Review Pending)
+Allow multiple source files to belong to one logical document, while retaining the ability to upload files as separate documents. Support source ordering and source removal/addition with immutable originals.
 
-- [x] Purpose text hierarchy
-- [x] Responsive recipient wrapping
-- [x] Refined typography and line spacing
-- [x] Indigo fill and subtle outline
-- [x] Custom multiline fallback
-- [x] Focused renderer regression checks
+### Phase 13 — Document Composer
 
-### Phase 6.2 — Watermark Position Preset Refinement
-Status: Implementation Complete (Live Visual Review Pending)
+Provide source/page selection, preview, and reordering. Images act as single composer items; PDFs expose selectable pages. Keep composition state local unless persistence is explicitly required.
 
-- [x] Typed 3 × 3 position model
-- [x] Accessible visual position selector
-- [x] Responsive safe margins
-- [x] Rotation-aware edge placement
-- [x] Long-recipient edge regression checks
-- [x] Independent position and rotation controls
+### Phase 14 — Conversion Engine
 
-## Phase 7 — PDF Watermarking
-Status: Implementation Complete (Live Browser Validation Pending)
+Implement browser-side conversion for the v0.2 JPG/JPEG/PNG/PDF matrix, including image conversion, images-to-PDF, selected/reordered PDF pages, PDF pages to images, and mixed image/PDF-page composition to PDF where practical.
 
-- [x] Load private PDF in the browser
-- [x] Apply watermark to all pages
-- [x] Per-page size, orientation, safe-margin, and rotated-bound layout
-- [x] Reuse shared watermark configuration and controls
-- [x] Lightweight PDF configuration preview
-- [x] Export a new local PDF
-- [x] User-friendly PDF error handling
-- [x] Focused multi-page and renderer regression checks
-- [ ] Live browser validation with a private Supabase PDF
+### Phase 15 — Conversion Output UX
 
-## Phase 8 — Purpose-Based Experience
-Status: Implementation Complete (Live Browser UX Validation Pending)
+Add clear output-format selection, conversion readiness, generated filenames, single-file downloads, and multi-output packaging (for example ZIP) when appropriate.
 
-- [x] Canonical typed purpose configuration
-- [x] Purpose meaning and recipient examples
-- [x] Required recipient validation for predefined purposes
-- [x] Optional recipient and custom multiline text for Other
-- [x] Predictable generated/manual text state
-- [x] Reset to generated text
-- [x] Stable editor-session date
-- [x] Shared image/PDF semantic configuration
-- [x] Download readiness feedback and validation
-- [x] Focused purpose workflow regression checks
-- [ ] Live browser UX validation for image and PDF workflows
+### Phase 16 — Converter → Watermark Integration
 
-## Phase 9 — UI Polish
-Status: Implementation Complete (Live Visual and Accessibility Review Pending)
+Allow generated in-memory conversion output to continue directly into WatermarkMe's existing watermark workflow without download-and-reupload and without persisting intermediate output by default.
 
-- [x] Product-wide visual consistency audit
-- [x] Navigation and mobile header refinement
-- [x] Landing and authentication refinement
-- [x] Dashboard, document card, upload, and detail hierarchy
-- [x] Image/PDF watermark editor polish
-- [x] Responsive layout static review and targeted fixes
-- [x] Shared loading and inline feedback treatment
-- [x] Practical keyboard, focus, form-error, and reduced-motion pass
-- [x] Authenticated route lazy loading
-- [ ] Live browser review at target breakpoints
-- [ ] Manual assistive-technology review
+### Phase 17 — QA, Security & Performance
 
-## Phase 10 — MVP Validation
-Status: Repository Validation Complete (Manual Browser Acceptance Pending)
+Validate multi-source ownership, migration compatibility, conversion correctness, browser memory/resource cleanup, large-document behavior, responsive composer UX, lazy loading, and original preservation.
 
-- [x] Audit authentication, routes, document lifecycle, and error-state code paths
-- [x] Validate upload format, MIME/extension, empty-file, and 10 MB rules
-- [x] Run purpose, image watermark, and PDF watermark regression checks
-- [x] Confirm watermark generation has no Storage or database mutation path
-- [x] Review RLS, private bucket, ownership policies, and frontend credential usage
-- [x] Run lint, strict TypeScript, production build, and dependency security audit
-- [ ] Validate the complete MVP flow in a live browser
-- [ ] Repeat complete-flow validation with a second account
-- [ ] Reconfirm the full cross-account metadata and Storage operation matrix
-- [ ] Complete live responsive and assistive-technology review
+---
+
+## Post-v0.2 candidates
+
+Not committed to a phase yet:
+
+- Version history / saved generated copies
+- Secure and expiring share links
+- Saved watermark/conversion presets
+- OCR and document recognition
+- Audit history
+- Additional formats only after a clear product need
+
+Do not implement these as part of v0.2 unless the roadmap is explicitly changed.

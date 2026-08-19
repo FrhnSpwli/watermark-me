@@ -1,6 +1,10 @@
 import type { PostgrestError, SupabaseClient, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import type { DocumentKind, DocumentRecord } from '../types/documents'
+import type {
+  DocumentFileRecord,
+  DocumentKind,
+  DocumentRecord,
+} from '../types/documents'
 
 export const DOCUMENT_BUCKET = 'documents'
 export const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
@@ -10,11 +14,16 @@ export const DOCUMENT_ACCESS_SECONDS = 60
 const DOCUMENT_COLUMNS =
   'id,user_id,name,document_type,mime_type,file_size,storage_path,created_at,updated_at'
 
+const DOCUMENT_FILE_COLUMNS =
+  'id,document_id,original_name,mime_type,file_size,storage_path,sort_order,created_at,updated_at'
+
 const MIME_EXTENSIONS: Record<string, readonly string[]> = {
   'image/jpeg': ['jpg', 'jpeg'],
   'image/png': ['png'],
   'application/pdf': ['pdf'],
 }
+
+const SUPPORTED_DOCUMENT_MIME_TYPES = new Set(Object.keys(MIME_EXTENSIONS))
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -176,6 +185,127 @@ function validateDocumentId(documentId: string) {
   }
 }
 
+function normalizeDocumentPath(storagePath: string) {
+  const trimmed = storagePath.trim()
+
+  if (!trimmed) {
+    throw new DocumentServiceError('A source storage path is required.', 'validation')
+  }
+
+  return trimmed
+}
+
+export function createLegacyDocumentSourceFile(
+  document: Pick<
+    DocumentRecord,
+    'id' | 'name' | 'mime_type' | 'file_size' | 'storage_path' | 'created_at' | 'updated_at'
+  >,
+): DocumentFileRecord {
+  return {
+    id: document.id,
+    document_id: document.id,
+    original_name: document.name,
+    mime_type: document.mime_type,
+    file_size: document.file_size,
+    storage_path: normalizeDocumentPath(document.storage_path),
+    sort_order: 0,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
+  }
+}
+
+export function validateDocumentSourceFileMetadata(
+  source: Partial<DocumentFileRecord>,
+): DocumentFileRecord {
+  const sourceId = source.id ?? ''
+  const documentId = source.document_id ?? ''
+  const originalName = source.original_name?.trim() ?? ''
+  const mimeType = source.mime_type ?? ''
+  const storagePath = source.storage_path ? normalizeDocumentPath(source.storage_path) : ''
+  const sortOrder = typeof source.sort_order === 'number' ? source.sort_order : Number(source.sort_order)
+  const fileSize = typeof source.file_size === 'number' ? source.file_size : Number(source.file_size)
+
+  if (!UUID_PATTERN.test(sourceId)) {
+    throw new DocumentServiceError('A valid document-source ID is required.', 'validation')
+  }
+
+  if (!UUID_PATTERN.test(documentId)) {
+    throw new DocumentServiceError('A valid parent document ID is required.', 'validation')
+  }
+
+  if (!originalName || originalName.length > MAX_DOCUMENT_NAME_LENGTH) {
+    throw new DocumentServiceError(
+      `The source name must be between 1 and ${MAX_DOCUMENT_NAME_LENGTH} characters.`,
+      'validation',
+    )
+  }
+
+  if (!SUPPORTED_DOCUMENT_MIME_TYPES.has(mimeType)) {
+    throw new DocumentServiceError('The source file type is not supported.', 'validation')
+  }
+
+  if (!Number.isFinite(fileSize) || fileSize < 1 || fileSize > MAX_DOCUMENT_SIZE) {
+    throw new DocumentServiceError('The source file size is outside the supported range.', 'validation')
+  }
+
+  if (!Number.isFinite(sortOrder) || sortOrder < 0) {
+    throw new DocumentServiceError('Source ordering must be a non-negative integer.', 'validation')
+  }
+
+  if (!storagePath || storagePath.split('/').length < 3 || storagePath.split('/').length > 4) {
+    throw new DocumentServiceError(
+      'The source storage path must use the document owner path convention.',
+      'validation',
+    )
+  }
+
+  return {
+    id: sourceId,
+    document_id: documentId,
+    original_name: originalName,
+    mime_type: mimeType,
+    file_size: fileSize,
+    storage_path: storagePath,
+    sort_order: Math.trunc(sortOrder),
+    created_at: source.created_at ?? new Date().toISOString(),
+    updated_at: source.updated_at ?? new Date().toISOString(),
+  }
+}
+
+function normalizeDocumentFiles(
+  document: DocumentRecord & { document_files?: DocumentFileRecord[] },
+): DocumentFileRecord[] {
+  const providedFiles = Array.isArray(document.files)
+    ? document.files
+    : Array.isArray(document.document_files)
+      ? document.document_files
+      : []
+
+  if (providedFiles.length > 0) {
+    return providedFiles.map((file) =>
+      validateDocumentSourceFileMetadata({
+        ...file,
+        document_id: file.document_id || document.id,
+        original_name: file.original_name || document.name,
+      }),
+    )
+  }
+
+  return [createLegacyDocumentSourceFile(document)]
+}
+
+export function normalizeDocumentRecord(
+  document: DocumentRecord & { document_files?: DocumentFileRecord[] },
+): DocumentRecord & { files: DocumentFileRecord[] } {
+  const files = normalizeDocumentFiles(document)
+  const orderedFiles = [...files].sort((left, right) => left.sort_order - right.sort_order)
+
+  return {
+    ...document,
+    files: orderedFiles,
+  }
+}
+
 function getSafeQueryError(error: unknown, fallback: string) {
   if (isNetworkError(error)) {
     return new DocumentServiceError(
@@ -209,16 +339,16 @@ export async function listDocuments(): Promise<DocumentRecord[]> {
   const { client } = await getAuthenticatedClient()
   const { data, error } = await client
     .from('documents')
-    .select(DOCUMENT_COLUMNS)
+    .select(`${DOCUMENT_COLUMNS},document_files(${DOCUMENT_FILE_COLUMNS})`)
     .order('created_at', { ascending: false })
-    .returns<DocumentRecord[]>()
+    .returns<Array<DocumentRecord & { document_files?: DocumentFileRecord[] }>>()
 
   if (error) {
     logServiceError('list failed', error)
     throw getSafeQueryError(error, 'We could not load your documents. Please try again.')
   }
 
-  return data ?? []
+  return (data ?? []).map((document) => normalizeDocumentRecord(document))
 }
 
 export async function getDocument(documentId: string): Promise<DocumentRecord> {
@@ -226,9 +356,9 @@ export async function getDocument(documentId: string): Promise<DocumentRecord> {
   const { client } = await getAuthenticatedClient()
   const { data, error } = await client
     .from('documents')
-    .select(DOCUMENT_COLUMNS)
+    .select(`${DOCUMENT_COLUMNS},document_files(${DOCUMENT_FILE_COLUMNS})`)
     .eq('id', documentId)
-    .maybeSingle<DocumentRecord>()
+    .maybeSingle<DocumentRecord & { document_files?: DocumentFileRecord[] }>()
 
   if (error) {
     logServiceError('get failed', error)
@@ -242,7 +372,7 @@ export async function getDocument(documentId: string): Promise<DocumentRecord> {
     )
   }
 
-  return data
+  return normalizeDocumentRecord(data)
 }
 
 export async function uploadDocument(file: File): Promise<DocumentRecord> {
@@ -336,10 +466,11 @@ export async function renameDocument(
 
 export async function deleteDocument(documentId: string): Promise<void> {
   const document = await getDocument(documentId)
+  const storagePaths = [...new Set(document.files?.map((file) => file.storage_path) ?? [document.storage_path])]
   const { client } = await getAuthenticatedClient()
   const { error: storageError } = await client.storage
     .from(DOCUMENT_BUCKET)
-    .remove([document.storage_path])
+    .remove(storagePaths)
 
   if (storageError) {
     logServiceError('storage delete failed', storageError)
@@ -367,10 +498,11 @@ export async function deleteDocument(documentId: string): Promise<void> {
 
 export async function createDocumentAccessUrl(documentId: string): Promise<string> {
   const document = await getDocument(documentId)
+  const primarySource = document.files?.[0] ?? createLegacyDocumentSourceFile(document)
   const { client } = await getAuthenticatedClient()
   const { data, error } = await client.storage
     .from(DOCUMENT_BUCKET)
-    .createSignedUrl(document.storage_path, DOCUMENT_ACCESS_SECONDS)
+    .createSignedUrl(primarySource.storage_path, DOCUMENT_ACCESS_SECONDS)
 
   if (error || !data?.signedUrl) {
     logServiceError('signed URL creation failed', error)

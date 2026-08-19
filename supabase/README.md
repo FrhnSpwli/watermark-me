@@ -27,3 +27,10 @@ separately by the Storage client.
 The current checkout has no linked Supabase CLI configuration. If CLI workflow
 is added later, this conventional migration directory can be applied with
 `supabase db push` after logging in and linking the correct project.
+
+For Phase 11, a new migration adds `public.document_files` and backfills each
+legacy `public.documents` row to exactly one source record. The legacy
+`USER_ID/DOCUMENT_ID/original.ext` Storage paths remain valid and are preserved.
+The `document_files` table enforces owner access through the parent document's
+`user_id`, while the Storage policy still checks the owner folder and `owner_id`
+for both the legacy path shape and the future nested `USER_ID/DOCUMENT_ID/FILE_ID/original.ext` convention.
