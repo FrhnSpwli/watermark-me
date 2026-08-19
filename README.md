@@ -18,6 +18,8 @@ The next planned milestone, **v0.2 — Document Composer & Converter**, expands 
 
 Phase 11 introduces a backward-compatible `document_files` relation that backfills each legacy v0.1 document into exactly one source record while keeping storage paths, metadata, and ownership semantics intact.
 
+Phase 12 adds multi-file upload and source management. Multiple files may be uploaded as separate documents or combined into one named logical document. New source uploads use `USER_ID/DOCUMENT_ID/FILE_ID/original.ext`; existing legacy objects remain unchanged. Sources can be added, reordered, viewed, and removed without entering the later composer or conversion workflow.
+
 ## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
@@ -200,6 +202,7 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run build` | Create a production build |
 | `npm run test:documents` | Validate document format and size rules |
 | `npm run test:phase11` | Check Phase 11 legacy-source compatibility |
+| `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -225,13 +228,13 @@ supabase/migrations/  Reproducible schema, RLS, and Storage policies
 
 v0.1 implementation through Phase 9 and repository-level Phase 10 validation are complete. Final live browser acceptance remains documented in [`ROADMAP.md`](ROADMAP.md).
 
-The next development phase is:
+The current development phase is:
 
 ```text
-Phase 11 — Multi-file Architecture & Safe Migration
+Phase 12 — Multi-file Upload & Management
 ```
 
-Do not begin converter UI implementation before the Phase 11 logical-document/source-file architecture and migration are complete.
+Repository implementation is complete for Phase 12; live browser and two-account Supabase acceptance remains documented in `ROADMAP.md`. Do not begin composer or converter UI implementation until Phase 12 acceptance is complete.
 
 ## Project documentation
 

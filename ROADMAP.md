@@ -30,7 +30,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 11 | Multi-file Architecture & Safe Migration | ✅ Phase 11 repository implementation complete; live Supabase validation remains manual |
-| 12 | Multi-file Upload & Management | Not Started |
+| 12 | Multi-file Upload & Management | 🟡 Repository implementation complete; manual browser/Supabase acceptance remains |
 | 13 | Document Composer: Selection, Preview & Reordering | Not Started |
 | 14 | Conversion Engine | Not Started |
 | 15 | Conversion Output UX | Not Started |
@@ -43,7 +43,7 @@ Introduce the logical-document/source-file model without moving or breaking exis
 
 ### Phase 12 — Multi-file Upload & Management
 
-Allow multiple source files to belong to one logical document, while retaining the ability to upload files as separate documents. Support source ordering and source removal/addition with immutable originals.
+Allow multiple source files to belong to one logical document, while retaining the ability to upload files as separate documents. Support source ordering and source removal/addition with immutable originals. Repository implementation is complete; live browser and two-account acceptance remains outstanding.
 
 ### Phase 13 — Document Composer
 
