@@ -26,6 +26,7 @@ import {
   createDocumentAccessUrl,
   getDocument,
   getDocumentErrorMessage,
+  resolveDocumentWatermarkSource,
 } from '../services/documents'
 import type { DocumentRecord } from '../types/documents'
 import type { PrivatePdfSource } from '../lib/watermark/pdfWatermark'
@@ -47,14 +48,6 @@ interface RenderErrorState {
   message: string
 }
 
-function isSupportedImage(document: DocumentRecord) {
-  return document.mime_type === 'image/jpeg' || document.mime_type === 'image/png'
-}
-
-function isSupportedPdf(document: DocumentRecord) {
-  return document.mime_type === 'application/pdf'
-}
-
 function getLoadMessage(stage: LoadStage) {
   if (stage === 'access') {
     return 'Creating private access…'
@@ -69,6 +62,22 @@ function getLoadMessage(stage: LoadStage) {
   }
 
   return 'Loading document…'
+}
+
+function getLoadFailureMessage(stage: LoadStage) {
+  if (stage === 'access') {
+    return 'Private access to this document source could not be created.'
+  }
+
+  if (stage === 'image') {
+    return 'The source image could not be loaded.'
+  }
+
+  if (stage === 'pdf') {
+    return 'The source PDF could not be loaded.'
+  }
+
+  return 'This document is unavailable or could not be loaded.'
 }
 
 function getWatermarkErrorMessage(error: unknown, fallback: string) {
@@ -139,19 +148,28 @@ export function WatermarkEditorPage() {
     const requestedDocumentId = documentId ?? ''
     let isActive = true
     let decodedImage: DecodedSourceImage | null = null
+    let failureStage: LoadStage = 'document'
 
     void (async () => {
       try {
         const nextDocument = await getDocument(requestedDocumentId)
+        const sourceResolution = resolveDocumentWatermarkSource(nextDocument)
 
-        if ((nextDocument.files?.length ?? 1) > 1) {
+        if (sourceResolution.status === 'multiple') {
           throw new ImageWatermarkError(
             'This logical document has multiple source files. Manage its sources first; multi-source watermarking belongs to a later phase.',
             'unsupported',
           )
         }
 
-        if (!isSupportedImage(nextDocument) && !isSupportedPdf(nextDocument)) {
+        if (sourceResolution.status === 'missing') {
+          throw new ImageWatermarkError(
+            'This document does not have source metadata available for watermarking.',
+            'unsupported',
+          )
+        }
+
+        if (sourceResolution.status === 'unsupported') {
           throw new ImageWatermarkError(
             'This document type is not supported by the watermark editor.',
             'unsupported',
@@ -162,13 +180,18 @@ export function WatermarkEditorPage() {
           setLoadStage('access')
         }
 
-        const signedUrl = await createDocumentAccessUrl(nextDocument.id)
+        failureStage = 'access'
+        const signedUrl = await createDocumentAccessUrl(
+          nextDocument.id,
+          sourceResolution.source.id,
+        )
 
-        if (isSupportedImage(nextDocument)) {
+        if (sourceResolution.kind === 'image') {
           if (isActive) {
             setLoadStage('image')
           }
 
+          failureStage = 'image'
           const nextImage = await loadPrivateSourceImage(signedUrl)
           decodedImage = nextImage
 
@@ -185,6 +208,7 @@ export function WatermarkEditorPage() {
             setLoadStage('pdf')
           }
 
+          failureStage = 'pdf'
           const { loadPrivatePdfSource } = await import(
             '../lib/watermark/pdfWatermark'
           )
@@ -209,7 +233,7 @@ export function WatermarkEditorPage() {
           setLoadError(
             getWatermarkErrorMessage(
               error,
-              'This document is unavailable or could not be loaded.',
+              getLoadFailureMessage(failureStage),
             ),
           )
           setLoadedDocumentId(requestedDocumentId)
