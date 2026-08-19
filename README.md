@@ -3,23 +3,24 @@
   <h1>WatermarkMe</h1>
   <p><strong>Protect your identity before sharing it.</strong></p>
   <p>
-    A privacy-first web application for creating purpose-specific watermarked
-    copies of sensitive documents.
+    A privacy-first web application for preparing, composing, converting, and
+    watermarking sensitive documents before sharing them.
   </p>
 </div>
 
 ## About
 
-WatermarkMe helps users prepare safer copies of identity documents before
-sending them to a company, bank, university, landlord, insurer, or another
-recipient. Users upload a private original, explain why it is being shared,
-customize a watermark, and download a separate watermarked copy.
+WatermarkMe helps users prepare safer copies of identity and supporting documents before sending them to a company, bank, university, landlord, insurer, or another recipient.
 
-The original stored document is never overwritten. Image and PDF watermarking
-run locally in the browser, and generated copies are downloaded directly
-without being uploaded back to Supabase.
+The v0.1 workflow lets users upload a private original, choose why it is being shared, customize a watermark, and download a separate watermarked copy. Original stored documents are never overwritten. Image and PDF watermarking run locally in the browser, and generated copies are downloaded directly without being uploaded back to Supabase.
 
-## MVP features
+The next planned milestone, **v0.2 — Document Composer & Converter**, expands a document from a single physical file into a logical document that can contain multiple private source files. This enables use cases such as a front/back identity card, page selection from PDFs, source/page reordering, and local conversion between supported image/PDF formats.
+
+Phase 11 introduces a backward-compatible `document_files` relation that backfills each legacy v0.1 document into exactly one source record while keeping storage paths, metadata, and ownership semantics intact.
+
+Phase 12 adds multi-file upload and source management. Multiple files may be uploaded as separate documents or combined into one named logical document. New source uploads use `USER_ID/DOCUMENT_ID/FILE_ID/original.ext`; existing legacy objects remain unchanged. Sources can be added, reordered, viewed, and removed without entering the later composer or conversion workflow.
+
+## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
 - Persistent sessions and protected application routes
@@ -33,7 +34,73 @@ without being uploaded back to Supabase.
 - Multi-page PDF watermarking and PDF export
 - Responsive, keyboard-accessible interface
 
-## How it works
+## Planned v0.2 capabilities
+
+The active v0.2 plan is documented in [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md).
+
+Planned scope includes:
+
+- Logical documents containing one or more source files
+- Multiple-image documents such as KTP front/back
+- Safe migration/backfill for existing v0.1 documents
+- Source-file ordering and management
+- PDF page selection and reordering
+- Document Composer preview
+- JPG/JPEG/PNG/PDF conversion workflows
+- Multiple images to PDF
+- Selected/reordered PDF pages to PDF
+- PDF pages to PNG/JPG
+- Mixed image + selected PDF pages to PDF where practical
+- Direct converter-to-watermark handoff using in-memory generated data
+
+Formats outside JPG/JPEG/PNG/PDF are intentionally out of scope for v0.2 unless the roadmap is explicitly changed.
+
+## Core privacy model
+
+WatermarkMe treats uploaded documents as sensitive personal data.
+
+- Supabase Storage remains private.
+- Database and Storage access are restricted to the authenticated owner.
+- The frontend uses only the Supabase project URL and anon key.
+- A Supabase `service_role` key must never be exposed to the browser.
+- Original uploads are immutable and are never overwritten.
+- Existing v0.1 Storage objects must not be moved merely to adopt the v0.2 data model.
+- Signed URLs provide short-lived access to private originals.
+- Watermarking runs in the browser.
+- v0.2 composition/conversion should also run locally where practical.
+- Generated and intermediate files are not uploaded to Supabase by default.
+
+The existing reproducible database and Storage security setup is defined in [`supabase/migrations/20260809000100_phase_3_secure_data_layer.sql`](supabase/migrations/20260809000100_phase_3_secure_data_layer.sql). v0.2 database changes must be introduced through new migrations rather than editing applied migrations.
+
+## Current and target document model
+
+### v0.1
+
+```text
+Document
+└── one original Storage object
+```
+
+### v0.2 target
+
+```text
+Logical Document
+├── Source File 1
+├── Source File 2
+└── Source File N
+```
+
+Example:
+
+```text
+KTP
+├── KTP Front.jpg
+└── KTP Back.jpg
+```
+
+Existing v0.1 originals remain valid and are backfilled into the new source-file relation during the Phase 11 migration. They should not be physically moved.
+
+## How v0.1 works
 
 ```text
 Register and confirm email
@@ -47,23 +114,27 @@ Customize and preview the watermark
 Download a new PNG or PDF copy
 ```
 
-Supported purposes are Job Application, Bank Verification, Property Rental,
-University Admission, Insurance, and Other.
+Supported purposes are Job Application, Bank Verification, Property Rental, University Admission, Insurance, and Other.
 
-## Privacy and security model
+## v0.2 target workflow
 
-WatermarkMe treats uploaded documents as sensitive personal data.
+```text
+Upload one or more private source files
+          ↓
+Select / reorder files or PDF pages
+          ↓
+Choose output format
+          ↓
+Compose / convert locally
+          ↓
+Download
+       or
+Continue directly to watermark
+          ↓
+Download final protected copy
+```
 
-- The `documents` Storage bucket is private.
-- Database and Storage access are restricted to the authenticated owner.
-- The frontend uses only the Supabase project URL and anon key.
-- A Supabase `service_role` key must never be exposed to the browser.
-- Original uploads use immutable object paths and are never overwritten.
-- Signed URLs provide short-lived access to private originals.
-- Generated watermarked files stay in browser memory and are downloaded locally.
-
-The reproducible database and Storage security setup is defined in
-[`supabase/migrations/20260809000100_phase_3_secure_data_layer.sql`](supabase/migrations/20260809000100_phase_3_secure_data_layer.sql).
+Intermediate converted output should stay in browser memory unless a later feature explicitly introduces saved generated versions.
 
 ## Technology
 
@@ -74,7 +145,9 @@ The reproducible database and Storage security setup is defined in
 - React Router
 - Supabase Auth, PostgreSQL, and Storage
 - HTML Canvas API for image watermarking
-- `pdf-lib` for browser-based PDF watermarking
+- `pdf-lib` for browser-based PDF watermarking/manipulation
+
+Additional v0.2 dependencies should be introduced only when needed. Heavy PDF preview/rendering code should be lazy-loaded when practical.
 
 ## Run locally
 
@@ -84,7 +157,7 @@ Requirements:
 - npm
 - A hosted Supabase project
 
-Clone and install the project:
+Clone and install:
 
 ```bash
 git clone https://github.com/FrhnSpwli/watermark-me.git
@@ -99,22 +172,19 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-Do not place a service-role key or database password in frontend environment
-variables.
+Do not place a service-role key or database password in frontend environment variables.
 
-Apply the Supabase migration by following
-[`supabase/README.md`](supabase/README.md), then start the application:
+Apply required Supabase migrations by following [`supabase/README.md`](supabase/README.md), then start the application:
 
 ```bash
 npm run dev
 ```
 
-The default Vite development URL is `http://localhost:5173` unless another
-port is selected because it is already in use.
+The default Vite development URL is `http://localhost:5173` unless another port is selected because it is already in use.
 
 ## Supabase Auth configuration
 
-For local development, configure the Supabase dashboard with:
+For local development:
 
 - Email confirmation enabled
 - Site URL: `http://localhost:5173`
@@ -131,6 +201,8 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run typecheck` | Run strict TypeScript checks |
 | `npm run build` | Create a production build |
 | `npm run test:documents` | Validate document format and size rules |
+| `npm run test:phase11` | Check Phase 11 legacy-source compatibility |
+| `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -142,7 +214,7 @@ src/
 ├── components/       Reusable UI and feature components
 ├── context/          Authentication context
 ├── hooks/            Reusable React hooks
-├── lib/              Supabase and watermark rendering utilities
+├── lib/              Supabase and document/watermark utilities
 ├── pages/            Route-level screens
 ├── services/         Authentication and document operations
 ├── types/            Shared TypeScript domain types
@@ -154,18 +226,23 @@ supabase/migrations/  Reproducible schema, RLS, and Storage policies
 
 ## Project status
 
-The Phase 1–9 MVP implementation and repository-level Phase 10 validation are
-complete. Final live browser acceptance, full two-account operation checks,
-and manual accessibility review remain documented in [`ROADMAP.md`](ROADMAP.md).
+v0.1 implementation through Phase 9 and repository-level Phase 10 validation are complete. Final live browser acceptance remains documented in [`ROADMAP.md`](ROADMAP.md).
 
-Password-protected PDFs are intentionally unsupported, and PDF export uses a
-lightweight representative preview instead of bundling a full PDF renderer.
+The current development phase is:
+
+```text
+Phase 12 — Multi-file Upload & Management
+```
+
+Repository implementation is complete for Phase 12; live browser and two-account Supabase acceptance remains documented in `ROADMAP.md`. Do not begin composer or converter UI implementation until Phase 12 acceptance is complete.
 
 ## Project documentation
 
-- [`MVP_BUILD_SPEC.md`](MVP_BUILD_SPEC.md) — complete product and engineering specification
-- [`ROADMAP.md`](ROADMAP.md) — implementation phases and validation status
-- [`AGENTS.md`](AGENTS.md) — rules for coding agents working on the project
+- [`README.md`](README.md) — current project overview
+- [`ROADMAP.md`](ROADMAP.md) — active phase and status
+- [`V0.1_MVP_BUILD_SPEC.md`](V0.1_MVP_BUILD_SPEC.md) — historical v0.1 product/engineering specification
+- [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) — active v0.2 architecture and implementation plan
+- [`AGENTS.md`](AGENTS.md) — rules for coding agents working on the repository
 - [`supabase/README.md`](supabase/README.md) — database and Storage setup
 
 ---

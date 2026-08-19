@@ -144,6 +144,13 @@ export function WatermarkEditorPage() {
       try {
         const nextDocument = await getDocument(requestedDocumentId)
 
+        if ((nextDocument.files?.length ?? 1) > 1) {
+          throw new ImageWatermarkError(
+            'This logical document has multiple source files. Manage its sources first; multi-source watermarking belongs to a later phase.',
+            'unsupported',
+          )
+        }
+
         if (!isSupportedImage(nextDocument) && !isSupportedPdf(nextDocument)) {
           throw new ImageWatermarkError(
             'This document type is not supported by the watermark editor.',
