@@ -238,6 +238,38 @@ export function removeDocumentSourceFromList(
     .map((source, sortOrder) => ({ ...source, sort_order: sortOrder }))
 }
 
+export type DocumentWatermarkSourceResolution =
+  | { status: 'ready'; kind: DocumentKind; source: DocumentFileRecord }
+  | { status: 'missing' }
+  | { status: 'multiple' }
+  | { status: 'unsupported'; source: DocumentFileRecord }
+
+export function resolveDocumentWatermarkSource(
+  document: Pick<DocumentRecord, 'files'>,
+): DocumentWatermarkSourceResolution {
+  const sources = document.files ?? []
+
+  if (sources.length === 0) {
+    return { status: 'missing' }
+  }
+
+  if (sources.length > 1) {
+    return { status: 'multiple' }
+  }
+
+  const source = sources[0]
+
+  if (source.mime_type === 'application/pdf') {
+    return { status: 'ready', kind: 'pdf', source }
+  }
+
+  if (source.mime_type === 'image/jpeg' || source.mime_type === 'image/png') {
+    return { status: 'ready', kind: 'image', source }
+  }
+
+  return { status: 'unsupported', source }
+}
+
 function validateDocumentId(documentId: string) {
   if (!UUID_PATTERN.test(documentId)) {
     throw new DocumentServiceError(

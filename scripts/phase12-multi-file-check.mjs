@@ -29,6 +29,21 @@ function source(id, sortOrder) {
   }
 }
 
+function documentWithSources(files, mimeType = 'application/pdf') {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    name: 'Logical document',
+    document_type: mimeType === 'application/pdf' ? 'pdf' : 'image',
+    mime_type: mimeType,
+    file_size: files[0]?.file_size ?? 100,
+    storage_path: files[0]?.storage_path ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/11111111-1111-4111-8111-111111111111/original.pdf',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    files,
+  }
+}
+
 try {
   const documents = await server.ssrLoadModule('/src/services/documents.ts')
   const sources = [source('22222222-2222-4222-8222-222222222222', 0), source('33333333-3333-4333-8333-333333333333', 1)]
@@ -70,6 +85,43 @@ try {
 
   const separate = await documents.uploadDocuments
   check(typeof separate === 'function', 'The service exposes the explicit upload workflow.')
+
+  const legacyPdfSource = {
+    ...source('55555555-5555-4555-8555-555555555555', 0),
+    original_name: 'Legacy contract.pdf',
+    mime_type: 'application/pdf',
+    storage_path: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/11111111-1111-4111-8111-111111111111/original.pdf',
+  }
+  const legacyResolution = documents.resolveDocumentWatermarkSource(
+    documentWithSources([legacyPdfSource], 'image/png'),
+  )
+  check(
+    legacyResolution.status === 'ready' &&
+      legacyResolution.kind === 'pdf' &&
+      legacyResolution.source.storage_path === legacyPdfSource.storage_path,
+    'A legacy-path single PDF resolves from authoritative source metadata for watermarking.',
+  )
+
+  const nestedPdfSource = {
+    ...source('66666666-6666-4666-8666-666666666666', 0),
+    original_name: 'Nested contract.pdf',
+    mime_type: 'application/pdf',
+    storage_path: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/11111111-1111-4111-8111-111111111111/66666666-6666-4666-8666-666666666666/original.pdf',
+  }
+  const nestedResolution = documents.resolveDocumentWatermarkSource(
+    documentWithSources([nestedPdfSource]),
+  )
+  check(
+    nestedResolution.status === 'ready' &&
+      nestedResolution.kind === 'pdf' &&
+      nestedResolution.source.id === nestedPdfSource.id,
+    'A nested-path single PDF remains watermarkable.',
+  )
+
+  check(
+    documents.resolveDocumentWatermarkSource(documentWithSources(sources)).status === 'multiple',
+    'A two-source document remains blocked from the single-source watermark flow.',
+  )
 
   console.log(`Phase 12 multi-file checks: ${checkCount} passed`)
 } finally {

@@ -12,6 +12,7 @@ import {
   addDocumentSource,
   removeDocumentSource,
   reorderDocumentSources,
+  resolveDocumentWatermarkSource,
   validateDocumentFile,
 } from '../services/documents'
 import type { DocumentFileRecord, DocumentRecord } from '../types/documents'
@@ -332,11 +333,8 @@ export function DocumentDetailPage() {
   }
 
   const sources = document.files ?? []
-  const canWatermark =
-    sources.length === 1 &&
-    (document.mime_type === 'image/jpeg' ||
-      document.mime_type === 'image/png' ||
-      document.mime_type === 'application/pdf')
+  const watermarkSourceResolution = resolveDocumentWatermarkSource(document)
+  const canWatermark = watermarkSourceResolution.status === 'ready'
 
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
@@ -480,9 +478,11 @@ export function DocumentDetailPage() {
               </Link>
             ) : (
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                {sources.length > 1
+                {watermarkSourceResolution.status === 'multiple'
                   ? 'Watermarking this multi-source document will be available after the composer phase.'
-                  : 'This document type is not supported by the watermark editor.'}
+                  : watermarkSourceResolution.status === 'missing'
+                    ? 'This document does not have source metadata available for watermarking.'
+                    : 'This document type is not supported by the watermark editor.'}
               </p>
             )}
           </section>
