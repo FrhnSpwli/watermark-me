@@ -31,7 +31,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | --- | --- | --- |
 | 11 | Multi-file Architecture & Safe Migration | ✅ Phase 11 repository implementation complete; live Supabase validation remains manual |
 | 12 | Multi-file Upload & Management | 🟡 Repository implementation complete; manual browser/Supabase acceptance remains |
-| 13 | Document Composer: Selection, Preview & Reordering | Not Started |
+| 13 | Document Composer: Selection, Preview & Reordering | Repository implementation complete; manual browser acceptance remains |
 | 14 | Conversion Engine | Not Started |
 | 15 | Conversion Output UX | Not Started |
 | 16 | Composer/Converter → Watermark Integration | Not Started |
@@ -47,7 +47,7 @@ Allow multiple source files to belong to one logical document, while retaining t
 
 ### Phase 13 — Document Composer
 
-Provide source/page selection, preview, and reordering. Images act as single composer items; PDFs expose selectable pages. Keep composition state local unless persistence is explicitly required.
+Provide source/page selection, preview, and reordering. Images act as single composer items; PDFs expose selectable pages. Keep composition state local unless persistence is explicitly required. Repository implementation now includes the protected Composer route, per-source failure isolation, lazy PDF page rendering, recoverable selection, pointer-accessible and keyboard-accessible global ordering, and browser resource cleanup. Manual acceptance remains; no output or conversion behavior is included.
 
 ### Phase 14 — Conversion Engine
 
