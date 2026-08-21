@@ -20,6 +20,8 @@ Phase 11 introduces a backward-compatible `document_files` relation that backfil
 
 Phase 12 adds multi-file upload and source management. Multiple files may be uploaded as separate documents or combined into one named logical document. New source uploads use `USER_ID/DOCUMENT_ID/FILE_ID/original.ext`; existing legacy objects remain unchanged. Sources can be added, reordered, viewed, and removed without entering the later composer or conversion workflow.
 
+Phase 13 adds a protected, browser-only Document Composer at `/documents/:documentId/compose`. It expands images into one item and PDFs into independently selectable pages, provides lazy previews, and maintains one global local-session order across mixed sources. It does not persist selection/order, generate output files, convert documents, or enter the watermark workflow.
+
 ## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
@@ -146,6 +148,7 @@ Intermediate converted output should stay in browser memory unless a later featu
 - Supabase Auth, PostgreSQL, and Storage
 - HTML Canvas API for image watermarking
 - `pdf-lib` for browser-based PDF watermarking/manipulation
+- Lazy-loaded `pdfjs-dist` for private, browser-side PDF page previews in the Composer
 
 Additional v0.2 dependencies should be introduced only when needed. Heavy PDF preview/rendering code should be lazy-loaded when practical.
 
@@ -203,6 +206,7 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run test:documents` | Validate document format and size rules |
 | `npm run test:phase11` | Check Phase 11 legacy-source compatibility |
 | `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
+| `npm run test:phase13` | Check Composer item creation, selection, and global ordering |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -231,10 +235,10 @@ v0.1 implementation through Phase 9 and repository-level Phase 10 validation are
 The current development phase is:
 
 ```text
-Phase 12 — Multi-file Upload & Management
+Phase 13 — Document Composer: Selection, Preview & Reordering
 ```
 
-Repository implementation is complete for Phase 12; live browser and two-account Supabase acceptance remains documented in `ROADMAP.md`. Do not begin composer or converter UI implementation until Phase 12 acceptance is complete.
+Repository implementation is complete for Phase 13; live browser acceptance remains documented in `ROADMAP.md`. Phase 13 is intentionally limited to local selection, preview, and reordering. It does not implement Phase 14 conversion or later output/watermark handoff phases.
 
 ## Project documentation
 

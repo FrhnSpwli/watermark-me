@@ -20,6 +20,11 @@ const DocumentDetailPage = lazy(async () => {
   return { default: page.DocumentDetailPage }
 })
 
+const DocumentComposerPage = lazy(async () => {
+  const page = await import('./pages/DocumentComposerPage')
+  return { default: page.DocumentComposerPage }
+})
+
 const WatermarkEditorPage = lazy(async () => {
   const page = await import('./pages/WatermarkEditorPage')
   return { default: page.WatermarkEditorPage }
@@ -68,6 +73,14 @@ const router = createBrowserRouter([
             element: (
               <SuspendedRoute>
                 <WatermarkEditorPage />
+              </SuspendedRoute>
+            ),
+          },
+          {
+            path: 'documents/:documentId/compose',
+            element: (
+              <SuspendedRoute>
+                <DocumentComposerPage />
               </SuspendedRoute>
             ),
           },

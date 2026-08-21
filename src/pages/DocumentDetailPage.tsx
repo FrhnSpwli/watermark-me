@@ -464,6 +464,25 @@ export function DocumentDetailPage() {
         </div>
 
         <aside className="space-y-4" aria-label="Document actions">
+          <section className="rounded-2xl border border-violet-200 bg-violet-50 p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">Open Document Composer</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Preview images and PDF pages, choose what to include, and arrange a browser-only output order.
+            </p>
+            {sources.length > 0 ? (
+              <Link
+                className="mt-4 inline-flex w-full justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+                to={`/documents/${document.id}/compose`}
+              >
+                Open Composer
+              </Link>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                This document does not have source metadata available for composition.
+              </p>
+            )}
+          </section>
+
           <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6 shadow-sm">
             <h2 className="text-lg font-bold text-slate-950">Create a watermarked copy</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -479,7 +498,7 @@ export function DocumentDetailPage() {
             ) : (
               <p className="mt-4 text-sm leading-6 text-slate-600">
                 {watermarkSourceResolution.status === 'multiple'
-                  ? 'Watermarking this multi-source document will be available after the composer phase.'
+                  ? 'The current watermark editor accepts one source. Use the Composer to inspect and arrange this document without generating output.'
                   : watermarkSourceResolution.status === 'missing'
                     ? 'This document does not have source metadata available for watermarking.'
                     : 'This document type is not supported by the watermark editor.'}
