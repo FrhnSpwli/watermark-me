@@ -9,6 +9,7 @@ interface ComposerSelectedOrderProps {
   items: ComposerItem[]
   imageUrls: ReadonlyMap<string, string>
   activeItemId: string | null
+  reorderingDisabled?: boolean
   onActivate: (itemId: string) => void
   onMoveByOffset: (itemId: string, offset: -1 | 1) => void
   onMoveToItem: (itemId: string, targetItemId: string) => void
@@ -18,6 +19,7 @@ export function ComposerSelectedOrder({
   items,
   imageUrls,
   activeItemId,
+  reorderingDisabled = false,
   onActivate,
   onMoveByOffset,
   onMoveToItem,
@@ -30,6 +32,10 @@ export function ComposerSelectedOrder({
     event: ReactPointerEvent<HTMLButtonElement>,
     itemId: string,
   ) => {
+    if (reorderingDisabled) {
+      return
+    }
+
     draggedItemId.current = itemId
     lastPointerTargetId.current = null
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -100,7 +106,8 @@ export function ComposerSelectedOrder({
               >
                 <button
                   aria-label={`Drag ${label}`}
-                  className="h-12 touch-none cursor-grab rounded-lg border border-slate-300 bg-white text-lg font-bold text-slate-500 active:cursor-grabbing"
+                  className="h-12 touch-none cursor-grab rounded-lg border border-slate-300 bg-white text-lg font-bold text-slate-500 active:cursor-grabbing disabled:cursor-not-allowed disabled:text-slate-300"
+                  disabled={reorderingDisabled}
                   onPointerCancel={finishPointerMove}
                   onPointerDown={(event) => handlePointerDown(event, item.id)}
                   onPointerMove={handlePointerMove}
@@ -143,7 +150,7 @@ export function ComposerSelectedOrder({
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                      disabled={index === 0}
+                      disabled={reorderingDisabled || index === 0}
                       onClick={() => onMoveByOffset(item.id, -1)}
                       type="button"
                     >
@@ -151,7 +158,7 @@ export function ComposerSelectedOrder({
                     </button>
                     <button
                       className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                      disabled={index === selectedItems.length - 1}
+                      disabled={reorderingDisabled || index === selectedItems.length - 1}
                       onClick={() => onMoveByOffset(item.id, 1)}
                       type="button"
                     >

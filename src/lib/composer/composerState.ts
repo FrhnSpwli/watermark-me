@@ -157,7 +157,7 @@ export function getComposerReadiness(items: ComposerItem[]) {
     selectedCount,
     message:
       selectedCount > 0
-        ? `${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} selected for future output.`
+        ? `${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} selected for output.`
         : 'Select at least one item to continue.',
   }
 }

@@ -33,7 +33,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | 12 | Multi-file Upload & Management | 🟡 Repository implementation complete; manual browser/Supabase acceptance remains |
 | 13 | Document Composer: Selection, Preview & Reordering | Repository implementation complete; manual browser acceptance remains |
 | 14 | Conversion Engine | 🟡 Repository implementation complete; browser conversion acceptance remains |
-| 15 | Conversion Output UX | Not Started |
+| 15 | Conversion Output UX | 🟡 Repository implementation complete; manual browser acceptance remains |
 | 16 | Composer/Converter → Watermark Integration | Not Started |
 | 17 | QA, Security & Performance | Not Started |
 
@@ -55,7 +55,7 @@ Implement browser-side conversion for the v0.2 JPG/JPEG/PNG/PDF matrix, includin
 
 ### Phase 15 — Conversion Output UX
 
-Add clear output-format selection, conversion readiness, generated filenames, single-file downloads, and multi-output packaging (for example ZIP) when appropriate.
+Add clear output-format selection, conversion readiness, generated filenames, single-file downloads, and multi-output packaging when appropriate. Repository implementation now derives only engine-supported targets from the current Composer selection, explains output shape and lossy/alpha behavior, reports conversion progress, supports cancellation, and immediately invalidates stale results. Single outputs use native temporary browser downloads; multi-image outputs use one browser-local ZIP with deterministic ordered filenames through lazy-loaded `jszip`. Generated output is not uploaded or persisted. Authenticated browser acceptance, visual output inspection, download invocation, cancellation timing, responsive layouts, and source-metadata/network immutability checks remain manual.
 
 ### Phase 16 — Converter → Watermark Integration
 
