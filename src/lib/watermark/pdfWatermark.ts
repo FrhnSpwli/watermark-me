@@ -252,8 +252,20 @@ export async function loadPrivatePdfSource(
     throw toPdfWatermarkError(error, 'load')
   }
 
+  return createPdfWatermarkSource(bytes)
+}
+
+export async function createPdfWatermarkSource(bytes: Uint8Array) {
   const pages = await inspectPdfBytes(bytes)
   return { bytes, pageCount: pages.length, pages }
+}
+
+export async function loadPdfWatermarkSourceBlob(blob: Blob) {
+  if (blob.type && blob.type !== 'application/pdf') {
+    throw new PdfWatermarkError('The temporary converted file is not a PDF.', 'invalid')
+  }
+
+  return createPdfWatermarkSource(new Uint8Array(await blob.arrayBuffer()))
 }
 
 function normalizeWatermarkLines(text: string) {

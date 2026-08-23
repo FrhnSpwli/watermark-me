@@ -34,7 +34,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | 13 | Document Composer: Selection, Preview & Reordering | Repository implementation complete; manual browser acceptance remains |
 | 14 | Conversion Engine | 🟡 Repository implementation complete; browser conversion acceptance remains |
 | 15 | Conversion Output UX | 🟡 Repository implementation complete; manual browser acceptance remains |
-| 16 | Composer/Converter → Watermark Integration | Not Started |
+| 16 | Composer/Converter → Watermark Integration | 🟡 Repository implementation complete; manual browser acceptance remains |
 | 17 | QA, Security & Performance | Not Started |
 
 ### Phase 11 — Multi-file Architecture & Safe Migration
@@ -59,7 +59,7 @@ Add clear output-format selection, conversion readiness, generated filenames, si
 
 ### Phase 16 — Converter → Watermark Integration
 
-Allow generated in-memory conversion output to continue directly into WatermarkMe's existing watermark workflow without download-and-reupload and without persisting intermediate output by default.
+Allow generated in-memory conversion output to continue directly into WatermarkMe's existing watermark workflow without download-and-reupload and without persistence. Repository implementation now hands the exact current `ConversionResult` to the protected watermark route through a session-owned in-memory registry and opaque navigation ID. Generated images reuse the Canvas watermark workflow; ordered multi-image results share one configuration, are processed completely, and download through one ZIP. Generated PDFs reuse the native `pdf-lib` watermark engine without rasterization. Ordinary persisted single-image and single-PDF watermarking remains on its existing authenticated source path. Refresh or authenticated-user changes intentionally expire temporary output. Authenticated desktop/mobile browser acceptance, output inspection, network/database immutability checks, and account-switch verification remain manual.
 
 ### Phase 17 — QA, Security & Performance
 

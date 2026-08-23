@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { AuthProvider } from './components/auth/AuthProvider'
+import { WatermarkHandoffProvider } from './components/watermark/WatermarkHandoffProvider'
 import './styles.css'
 
 const rootElement = document.getElementById('root')
@@ -13,7 +14,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <WatermarkHandoffProvider>
+        <App />
+      </WatermarkHandoffProvider>
     </AuthProvider>
   </StrictMode>,
 )

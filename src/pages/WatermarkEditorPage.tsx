@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { PdfWatermarkPreview } from '../components/watermark/PdfWatermarkPreview'
 import { WatermarkControls } from '../components/watermark/WatermarkControls'
 import { RouteLoadingScreen } from '../components/ui/RouteLoadingScreen'
+import { useWatermarkEditorInput } from '../hooks/useWatermarkEditorInput'
 import {
-  exportCanvasAsPng,
+  canvasToPngBlob,
   ImageWatermarkError,
-  loadPrivateSourceImage,
   renderImageWatermark,
 } from '../lib/watermark/imageWatermark'
-import {
-  buildWatermarkedFilename,
-  DEFAULT_WATERMARK_SETTINGS,
-} from '../lib/watermark/watermarkConfig'
+import { DEFAULT_WATERMARK_SETTINGS } from '../lib/watermark/watermarkConfig'
 import {
   changeWatermarkPurpose,
   changeWatermarkRecipient,
@@ -23,85 +20,74 @@ import {
   validateWatermarkDownload,
 } from '../lib/watermark/purposeExperience'
 import {
-  createDocumentAccessUrl,
-  getDocument,
-  getDocumentErrorMessage,
-  resolveDocumentWatermarkSource,
-} from '../services/documents'
-import type { DocumentRecord } from '../types/documents'
-import type { PrivatePdfSource } from '../lib/watermark/pdfWatermark'
+  buildWatermarkOutputFilenames,
+  buildWatermarkZipFilename,
+  createWatermarkResultSignature,
+  isWatermarkCancellation,
+  isWatermarkResultCurrent,
+  watermarkGeneratedImageArtifacts,
+} from '../lib/watermark/watermarkOutput'
+import {
+  createArtifactsZip,
+  downloadBlob,
+} from '../lib/conversion/conversionDownload'
+import { getWatermarkHandoffId } from '../lib/watermark/watermarkHandoff'
 import type {
-  DecodedSourceImage,
-  WatermarkSettings,
+  WatermarkProgress,
   WatermarkPurpose,
+  WatermarkResult,
+  WatermarkSettings,
 } from '../types/watermark'
 
-type LoadStage = 'document' | 'access' | 'image' | 'pdf'
-type ExportStage = 'idle' | 'generating' | 'downloading'
 type WatermarkAppearanceSettings = Pick<
   WatermarkSettings,
   'opacity' | 'rotationDegrees' | 'fontSizeRatio' | 'position'
 >
+
+type ActionStage = 'idle' | 'generating' | 'preparing-download'
 
 interface RenderErrorState {
   signature: string
   message: string
 }
 
-function getLoadMessage(stage: LoadStage) {
-  if (stage === 'access') {
-    return 'Creating private access…'
-  }
-
-  if (stage === 'image') {
-    return 'Loading source image…'
-  }
-
-  if (stage === 'pdf') {
-    return 'Preparing PDF…'
-  }
-
-  return 'Loading document…'
-}
-
-function getLoadFailureMessage(stage: LoadStage) {
-  if (stage === 'access') {
-    return 'Private access to this document source could not be created.'
-  }
-
-  if (stage === 'image') {
-    return 'The source image could not be loaded.'
-  }
-
-  if (stage === 'pdf') {
-    return 'The source PDF could not be loaded.'
-  }
-
-  return 'This document is unavailable or could not be loaded.'
+interface GeneratedResultState {
+  signature: string
+  result: WatermarkResult
 }
 
 function getWatermarkErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ImageWatermarkError) {
     return error.message
   }
-
   if (error instanceof Error && error.name === 'PdfWatermarkError') {
     return error.message
   }
-
-  return getDocumentErrorMessage(error, fallback)
+  if (error instanceof Error && error.name === 'WatermarkOutputError') {
+    return error.message
+  }
+  return fallback
 }
 
 export function WatermarkEditorPage() {
-  const { documentId } = useParams<{ documentId: string }>()
+  const { documentId = '' } = useParams<{ documentId: string }>()
+  const location = useLocation()
+  const handoffId = getWatermarkHandoffId(location.state)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const generationController = useRef<AbortController | null>(null)
   const [reloadRevision, setReloadRevision] = useState(0)
-  const [loadedDocumentId, setLoadedDocumentId] = useState<string | null>(null)
-  const [loadStage, setLoadStage] = useState<LoadStage>('document')
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [documentRecord, setDocumentRecord] = useState<DocumentRecord | null>(null)
-  const [sourceImage, setSourceImage] = useState<DecodedSourceImage | null>(null)
-  const [pdfSource, setPdfSource] = useState<PrivatePdfSource | null>(null)
+  const {
+    input,
+    sourceImage,
+    pdfSource,
+    error: inputError,
+    isLoading,
+    loadMessage,
+    previewLoading,
+    activeArtifactIndex,
+    setActiveArtifactIndex,
+    generatedImageArtifacts,
+  } = useWatermarkEditorInput({ documentId, handoffId, reloadRevision })
   const [purposeState, setPurposeState] = useState(() =>
     createWatermarkPurposeState(new Date()),
   )
@@ -115,10 +101,13 @@ export function WatermarkEditorPage() {
   const [textError, setTextError] = useState<string | null>(null)
   const [renderedSignature, setRenderedSignature] = useState<string | null>(null)
   const [renderError, setRenderError] = useState<RenderErrorState | null>(null)
-  const [exportStage, setExportStage] = useState<ExportStage>('idle')
-  const [exportError, setExportError] = useState<string | null>(null)
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
-  const isExporting = exportStage !== 'idle'
+  const [actionStage, setActionStage] = useState<ActionStage>('idle')
+  const [progress, setProgress] = useState<WatermarkProgress | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [generatedResult, setGeneratedResult] =
+    useState<GeneratedResultState | null>(null)
+  const isBusy = actionStage !== 'idle'
   const settings = useMemo<WatermarkSettings>(
     () => ({
       ...appearance,
@@ -127,125 +116,47 @@ export function WatermarkEditorPage() {
     }),
     [appearance, purposeState.text, purposeState.textStyle],
   )
-  const downloadReadiness = useMemo(
+  const readiness = useMemo(
     () => validateWatermarkDownload(purposeState),
     [purposeState],
   )
-
   const renderSignature = useMemo(
     () =>
       JSON.stringify({
-        documentId,
-        reloadRevision,
+        sourceKey: input?.sourceKey,
+        activeArtifactIndex,
         width: sourceImage?.width,
         height: sourceImage?.height,
         settings,
       }),
-    [documentId, reloadRevision, settings, sourceImage?.height, sourceImage?.width],
+    [
+      activeArtifactIndex,
+      input?.sourceKey,
+      settings,
+      sourceImage?.height,
+      sourceImage?.width,
+    ],
   )
+  const resultSignature = createWatermarkResultSignature(
+    input?.sourceKey ?? `document:${documentId}`,
+    settings,
+    purposeState.purpose,
+    purposeState.recipient,
+    purposeState.sessionDate,
+  )
+  const currentResult =
+    generatedResult &&
+    isWatermarkResultCurrent(generatedResult.signature, resultSignature)
+      ? generatedResult.result
+      : null
 
-  useEffect(() => {
-    const requestedDocumentId = documentId ?? ''
-    let isActive = true
-    let decodedImage: DecodedSourceImage | null = null
-    let failureStage: LoadStage = 'document'
-
-    void (async () => {
-      try {
-        const nextDocument = await getDocument(requestedDocumentId)
-        const sourceResolution = resolveDocumentWatermarkSource(nextDocument)
-
-        if (sourceResolution.status === 'multiple') {
-          throw new ImageWatermarkError(
-            'This logical document has multiple source files. Manage its sources first; multi-source watermarking belongs to a later phase.',
-            'unsupported',
-          )
-        }
-
-        if (sourceResolution.status === 'missing') {
-          throw new ImageWatermarkError(
-            'This document does not have source metadata available for watermarking.',
-            'unsupported',
-          )
-        }
-
-        if (sourceResolution.status === 'unsupported') {
-          throw new ImageWatermarkError(
-            'This document type is not supported by the watermark editor.',
-            'unsupported',
-          )
-        }
-
-        if (isActive) {
-          setLoadStage('access')
-        }
-
-        failureStage = 'access'
-        const signedUrl = await createDocumentAccessUrl(
-          nextDocument.id,
-          sourceResolution.source.id,
-        )
-
-        if (sourceResolution.kind === 'image') {
-          if (isActive) {
-            setLoadStage('image')
-          }
-
-          failureStage = 'image'
-          const nextImage = await loadPrivateSourceImage(signedUrl)
-          decodedImage = nextImage
-
-          if (!isActive) {
-            nextImage.dispose()
-            decodedImage = null
-            return
-          }
-
-          setSourceImage(nextImage)
-          setPdfSource(null)
-        } else {
-          if (isActive) {
-            setLoadStage('pdf')
-          }
-
-          failureStage = 'pdf'
-          const { loadPrivatePdfSource } = await import(
-            '../lib/watermark/pdfWatermark'
-          )
-          const nextPdfSource = await loadPrivatePdfSource(signedUrl)
-
-          if (!isActive) {
-            return
-          }
-
-          setSourceImage(null)
-          setPdfSource(nextPdfSource)
-        }
-
-        setDocumentRecord(nextDocument)
-        setLoadError(null)
-        setLoadedDocumentId(requestedDocumentId)
-      } catch (error: unknown) {
-        if (isActive) {
-          setDocumentRecord(null)
-          setSourceImage(null)
-          setPdfSource(null)
-          setLoadError(
-            getWatermarkErrorMessage(
-              error,
-              getLoadFailureMessage(failureStage),
-            ),
-          )
-          setLoadedDocumentId(requestedDocumentId)
-        }
-      }
-    })()
-
-    return () => {
-      isActive = false
-      decodedImage?.dispose()
-    }
-  }, [documentId, reloadRevision])
+  useEffect(
+    () => () => {
+      generationController.current?.abort()
+      generationController.current = null
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!sourceImage || !canvasRef.current) {
@@ -261,7 +172,10 @@ export function WatermarkEditorPage() {
       } catch (error) {
         setRenderError({
           signature: renderSignature,
-          message: getWatermarkErrorMessage(error, 'The preview could not be rendered.'),
+          message: getWatermarkErrorMessage(
+            error,
+            'The preview could not be rendered.',
+          ),
         })
       }
     })
@@ -274,23 +188,30 @@ export function WatermarkEditorPage() {
   const isRendering = Boolean(
     sourceImage && renderedSignature !== renderSignature && !currentRenderError,
   )
-  const isPdfEditor = Boolean(pdfSource)
-  const handlePurposeChange = (nextPurpose: WatermarkPurpose) => {
-    setPurposeState((current) => changeWatermarkPurpose(current, nextPurpose))
-    setRecipientError(null)
-    setTextError(null)
-    setExportError(null)
-    setExportMessage(null)
+  const isPdfEditor = input?.kind === 'pdf'
+  const batchCount = generatedImageArtifacts?.length ?? 1
+
+  const invalidateResult = () => {
+    setGeneratedResult(null)
+    setActionError(null)
+    setActionMessage(null)
   }
 
-  const handleRecipientChange = (nextRecipient: string) => {
-    setPurposeState((current) => changeWatermarkRecipient(current, nextRecipient))
+  const handlePurposeChange = (purpose: WatermarkPurpose) => {
+    invalidateResult()
+    setPurposeState((current) => changeWatermarkPurpose(current, purpose))
     setRecipientError(null)
-    setExportError(null)
-    setExportMessage(null)
+    setTextError(null)
+  }
+
+  const handleRecipientChange = (recipient: string) => {
+    invalidateResult()
+    setPurposeState((current) => changeWatermarkRecipient(current, recipient))
+    setRecipientError(null)
   }
 
   const handleRecipientBlur = () => {
+    invalidateResult()
     const nextState = normalizePurposeRecipient(purposeState)
     const nextReadiness = validateWatermarkDownload(nextState)
     setPurposeState(nextState)
@@ -298,22 +219,19 @@ export function WatermarkEditorPage() {
   }
 
   const handleTextChange = (text: string) => {
+    invalidateResult()
     setTextError(null)
-    setExportError(null)
-    setExportMessage(null)
     setPurposeState((current) => changeWatermarkText(current, text))
   }
 
   const handleResetText = () => {
+    invalidateResult()
     setTextError(null)
-    setExportError(null)
-    setExportMessage(null)
     setPurposeState((current) => resetWatermarkText(current))
   }
 
   const handleSettingsChange = (nextSettings: WatermarkSettings) => {
-    setExportError(null)
-    setExportMessage(null)
+    invalidateResult()
     setAppearance({
       opacity: nextSettings.opacity,
       rotationDegrees: nextSettings.rotationDegrees,
@@ -323,162 +241,302 @@ export function WatermarkEditorPage() {
   }
 
   const handleRetry = () => {
-    setLoadStage('document')
-    setLoadError(null)
-    setLoadedDocumentId(null)
-    setSourceImage(null)
-    setPdfSource(null)
-    setDocumentRecord(null)
+    invalidateResult()
     setReloadRevision((current) => current + 1)
   }
 
-  const handleExport = async () => {
-    if (!documentRecord || (!sourceImage && !pdfSource) || isExporting) {
+  const handleGenerate = async () => {
+    if (!input || isBusy || (!sourceImage && !pdfSource)) {
       return
     }
 
-    setRecipientError(null)
-    setTextError(null)
-    setExportError(null)
-    setExportMessage(null)
-
-    setRecipientError(downloadReadiness.recipientError)
-    setTextError(downloadReadiness.textError)
-
-    if (!downloadReadiness.isReady) {
+    setRecipientError(readiness.recipientError)
+    setTextError(readiness.textError)
+    setActionError(null)
+    setActionMessage(null)
+    setGeneratedResult(null)
+    if (!readiness.isReady) {
       return
     }
 
-    const { normalizedRecipient } = downloadReadiness
-
-    setExportStage('generating')
+    const controller = new AbortController()
+    generationController.current = controller
+    setActionStage('generating')
+    setProgress({ completed: 0, total: batchCount })
+    const capturedSignature = resultSignature
 
     try {
-      if (sourceImage) {
+      let result: WatermarkResult
+      if (generatedImageArtifacts) {
+        const filenames = buildWatermarkOutputFilenames(
+          input.context.name,
+          purposeState.purpose,
+          readiness.normalizedRecipient,
+          purposeState.sessionDate,
+          generatedImageArtifacts.length,
+          'png',
+        )
+        const { generateWatermarkedImageBlob } = await import(
+          '../lib/watermark/imageWatermark'
+        )
+        result = await watermarkGeneratedImageArtifacts({
+          artifacts: generatedImageArtifacts,
+          filenames,
+          settings,
+          signal: controller.signal,
+          render: generateWatermarkedImageBlob,
+          onProgress: setProgress,
+        })
+      } else if (sourceImage) {
         if (!canvasRef.current) {
-          throw new ImageWatermarkError('The image preview is not ready yet.', 'export')
+          throw new ImageWatermarkError(
+            'The image preview is not ready yet.',
+            'export',
+          )
         }
-
         renderImageWatermark(canvasRef.current, sourceImage, settings)
-        setRenderedSignature(renderSignature)
-        setExportStage('downloading')
-        await exportCanvasAsPng(
-          canvasRef.current,
-          buildWatermarkedFilename(
-            documentRecord.name,
-            purposeState.purpose,
-            normalizedRecipient,
-            purposeState.sessionDate,
-          ),
-        )
-        setExportMessage(
-          `PNG downloaded at ${sourceImage.width} × ${sourceImage.height}px. The private original was not changed.`,
-        )
+        const blob = await canvasToPngBlob(canvasRef.current, controller.signal)
+        result = {
+          artifacts: [{
+            blob,
+            mimeType: 'image/png',
+            extension: 'png',
+            filename: buildWatermarkOutputFilenames(
+              input.context.name,
+              purposeState.purpose,
+              readiness.normalizedRecipient,
+              purposeState.sessionDate,
+              1,
+              'png',
+            )[0],
+          }],
+        }
+        setProgress({ completed: 1, total: 1 })
       } else if (pdfSource) {
-        const { downloadPdfBytes, generateWatermarkedPdf } = await import(
+        controller.signal.throwIfAborted()
+        const { generateWatermarkedPdf } = await import(
           '../lib/watermark/pdfWatermark'
         )
-        const result = await generateWatermarkedPdf(pdfSource.bytes, settings)
-        setExportStage('downloading')
-        downloadPdfBytes(
-          result.bytes,
-          buildWatermarkedFilename(
-            documentRecord.name,
-            purposeState.purpose,
-            normalizedRecipient,
-            purposeState.sessionDate,
-            'pdf',
-          ),
-        )
-        setExportMessage(
-          `Watermarked PDF downloaded with ${result.processedPageCount} ${result.processedPageCount === 1 ? 'page' : 'pages'}. The private original was not changed.`,
+        const pdfResult = await generateWatermarkedPdf(pdfSource.bytes, settings)
+        controller.signal.throwIfAborted()
+        result = {
+          artifacts: [{
+            blob: new Blob([new Uint8Array(pdfResult.bytes)], {
+              type: 'application/pdf',
+            }),
+            mimeType: 'application/pdf',
+            extension: 'pdf',
+            filename: buildWatermarkOutputFilenames(
+              input.context.name,
+              purposeState.purpose,
+              readiness.normalizedRecipient,
+              purposeState.sessionDate,
+              1,
+              'pdf',
+            )[0],
+          }],
+        }
+        setProgress({ completed: 1, total: 1 })
+      } else {
+        return
+      }
+
+      if (
+        generationController.current === controller &&
+        !controller.signal.aborted
+      ) {
+        setGeneratedResult({ signature: capturedSignature, result })
+        setActionMessage(
+          result.artifacts.length === 1
+            ? 'Watermarked copy generated in this browser.'
+            : `${result.artifacts.length} watermarked images generated in the original conversion order.`,
         )
       }
     } catch (error) {
-      setExportError(
-        getWatermarkErrorMessage(
-          error,
-          `The watermarked ${sourceImage ? 'PNG' : 'PDF'} could not be downloaded.`,
-        ),
-      )
+      if (generationController.current === controller) {
+        if (isWatermarkCancellation(error)) {
+          setActionMessage(
+            'Watermark generation cancelled. Settings were kept for another try.',
+          )
+        } else {
+          setActionError(
+            getWatermarkErrorMessage(
+              error,
+              'The watermarked output could not be generated in this browser.',
+            ),
+          )
+        }
+      }
     } finally {
-      setExportStage('idle')
+      if (generationController.current === controller) {
+        generationController.current = null
+        setActionStage('idle')
+      }
     }
   }
 
-  if (
-    (!sourceImage && !pdfSource) ||
-    !documentRecord ||
-    loadedDocumentId !== (documentId ?? '') ||
-    loadError
-  ) {
-    if (!loadError || loadedDocumentId !== (documentId ?? '')) {
-      return <RouteLoadingScreen message={getLoadMessage(loadStage)} />
+  const handleCancel = () => {
+    generationController.current?.abort()
+  }
+
+  const handleDownload = async () => {
+    if (!currentResult || isBusy) {
+      return
     }
 
+    setActionError(null)
+    try {
+      if (currentResult.artifacts.length === 1) {
+        const artifact = currentResult.artifacts[0]
+        downloadBlob(artifact.blob, artifact.filename)
+        setActionMessage(`Download started for ${artifact.filename}.`)
+        return
+      }
+
+      setActionStage('preparing-download')
+      const filenames = currentResult.artifacts.map((artifact) => artifact.filename)
+      const zipBlob = await createArtifactsZip(
+        currentResult.artifacts,
+        filenames,
+      )
+      const zipFilename = buildWatermarkZipFilename(filenames[0])
+      downloadBlob(zipBlob, zipFilename)
+      setActionMessage(`Download started for ${zipFilename}.`)
+    } catch {
+      setActionError('The browser could not prepare this download. Please try again.')
+    } finally {
+      setActionStage('idle')
+    }
+  }
+
+  if (isLoading) {
+    return <RouteLoadingScreen message={loadMessage} />
+  }
+
+  if (inputError || !input) {
+    const isTemporary = inputError?.code !== 'document-unavailable'
     return (
       <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-indigo-600">
           Watermark editor
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
-          Document unavailable
+          {isTemporary ? 'Temporary conversion unavailable' : 'Document unavailable'}
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">{loadError}</p>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+          {inputError?.message ?? 'This watermark input is unavailable.'}
+        </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            to="/dashboard"
+            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+            to={isTemporary ? `/documents/${documentId}/compose` : '/dashboard'}
           >
-            Back to documents
+            {isTemporary ? 'Return to Composer' : 'Back to documents'}
           </Link>
-          <button
-            className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            onClick={handleRetry}
-            type="button"
-          >
-            Try again
-          </button>
+          {!isTemporary ? (
+            <button
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={handleRetry}
+              type="button"
+            >
+              Try again
+            </button>
+          ) : null}
         </div>
       </section>
     )
   }
+
+  const backTarget =
+    input.authority === 'generated'
+      ? `/documents/${input.context.id}/compose`
+      : `/documents/${input.context.id}`
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-5 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <Link
-            className="inline-flex rounded-lg text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600"
-            to={`/documents/${documentRecord.id}`}
+            className="inline-flex rounded-lg text-sm font-semibold text-indigo-700 underline-offset-4 hover:underline"
+            to={backTarget}
           >
-            ← Back to document
+            &larr; Back to {input.authority === 'generated' ? 'Composer' : 'document'}
           </Link>
           <h1 className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-            Watermark {documentRecord.name}
+            Watermark {input.context.name}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Preview and export happen locally in this browser. Your private original remains unchanged.
+            {input.authority === 'generated'
+              ? 'This converted output is being watermarked in your browser. Neither intermediate nor final files are uploaded.'
+              : 'Preview and export happen locally in this browser. Your private original remains unchanged.'}
           </p>
         </div>
-        <button
-          className="inline-flex shrink-0 justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:bg-indigo-300"
-          disabled={isExporting || isRendering || Boolean(currentRenderError)}
-          onClick={handleExport}
-          type="button"
-        >
-          {isExporting
-            ? exportStage === 'downloading'
-              ? 'Downloading…'
-              : isPdfEditor
-                ? 'Generating PDF…'
-                : 'Creating PNG…'
-            : `Download ${isPdfEditor ? 'PDF' : 'PNG'}`}
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-3">
+          <button
+            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            disabled={
+              isBusy ||
+              previewLoading ||
+              isRendering ||
+              Boolean(currentRenderError)
+            }
+            onClick={() => void handleGenerate()}
+            type="button"
+          >
+            {actionStage === 'generating'
+              ? `Watermarking ${progress?.completed ?? 0} of ${progress?.total ?? batchCount}...`
+              : currentResult
+                ? 'Regenerate Watermarked Copy'
+                : `Generate Watermarked ${batchCount > 1 ? 'Copies' : 'Copy'}`}
+          </button>
+          {actionStage === 'generating' ? (
+            <button
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={handleCancel}
+              type="button"
+            >
+              Cancel
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_23rem]">
         <div className="min-w-0">
+          {generatedImageArtifacts && generatedImageArtifacts.length > 1 ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  Converted file {activeArtifactIndex + 1} of {generatedImageArtifacts.length}
+                </p>
+                <p className="mt-1 max-w-md truncate text-xs text-slate-500">
+                  {generatedImageArtifacts[activeArtifactIndex].filename}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:text-slate-300"
+                  disabled={isBusy || activeArtifactIndex === 0}
+                  onClick={() => setActiveArtifactIndex(activeArtifactIndex - 1)}
+                  type="button"
+                >
+                  Previous
+                </button>
+                <button
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:text-slate-300"
+                  disabled={
+                    isBusy ||
+                    activeArtifactIndex === generatedImageArtifacts.length - 1
+                  }
+                  onClick={() => setActiveArtifactIndex(activeArtifactIndex + 1)}
+                  type="button"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {sourceImage ? (
             <section
               aria-busy={isRendering}
@@ -489,38 +547,28 @@ export function WatermarkEditorPage() {
                 <div>
                   <h2 className="font-bold text-slate-950">Live preview</h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    Source resolution: {sourceImage.width} × {sourceImage.height}px
+                    Source resolution: {sourceImage.width} &times; {sourceImage.height}px
                   </p>
                 </div>
-                {isRendering ? (
-                  <span className="text-xs font-medium text-indigo-700" role="status">
-                    Rendering…
-                  </span>
-                ) : (
-                  <span className="text-xs font-medium text-emerald-700">Ready</span>
-                )}
+                <span className="text-xs font-medium text-emerald-700">
+                  {isRendering ? 'Rendering...' : 'Ready'}
+                </span>
               </div>
-
               <div className="relative grid min-h-72 place-items-center overflow-auto bg-slate-100 p-3 sm:min-h-[32rem] sm:p-6">
                 <canvas
-                  aria-label={`Watermarked preview of ${documentRecord.name}`}
+                  aria-label={`Watermarked preview of ${input.context.name}`}
                   className="block h-auto max-h-[70vh] max-w-full rounded-lg bg-white shadow-lg"
                   ref={canvasRef}
-                >
-                  Watermarked preview of {documentRecord.name}
-                </canvas>
-                {isRendering ? (
-                  <div className="pointer-events-none absolute inset-0 grid place-items-center bg-slate-100/40">
-                    <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
-                      Updating preview…
-                    </span>
-                  </div>
-                ) : null}
+                />
               </div>
             </section>
+          ) : previewLoading ? (
+            <div className="grid min-h-72 place-items-center rounded-2xl border border-slate-200 bg-slate-100 text-sm text-slate-600" role="status">
+              Preparing this converted image preview...
+            </div>
           ) : pdfSource ? (
             <PdfWatermarkPreview
-              documentName={documentRecord.name}
+              documentName={input.context.name}
               settings={settings}
               source={pdfSource}
             />
@@ -531,29 +579,65 @@ export function WatermarkEditorPage() {
               {currentRenderError}
             </p>
           ) : null}
-          {exportError ? (
+          {actionStage === 'generating' && progress ? (
+            <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900" role="status" aria-live="polite">
+              Watermarking {progress.completed} of {progress.total}{' '}
+              {progress.total === 1 ? 'file' : 'files'}...
+            </div>
+          ) : null}
+          {actionError ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-              {exportError}
+              {actionError}
             </p>
           ) : null}
-          {exportMessage ? (
+          {actionMessage ? (
             <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
-              {exportMessage}
+              {actionMessage}
             </p>
+          ) : null}
+          {currentResult ? (
+            <section className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+              <h2 className="font-bold text-emerald-950">Watermarked output ready</h2>
+              <p className="mt-1 text-sm text-emerald-900">
+                {currentResult.artifacts.length}{' '}
+                {currentResult.artifacts.length === 1 ? 'file' : 'files'} generated locally.
+              </p>
+              <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded-lg bg-white/70 p-3 font-mono text-xs text-slate-700">
+                {currentResult.artifacts.map((artifact) => (
+                  <li className="break-all" key={artifact.filename}>
+                    {artifact.filename}
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="mt-4 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={isBusy}
+                onClick={() => void handleDownload()}
+                type="button"
+              >
+                {actionStage === 'preparing-download'
+                  ? 'Preparing Watermarked ZIP...'
+                  : currentResult.artifacts.length === 1
+                    ? 'Download Watermarked Copy'
+                    : 'Download Watermarked ZIP'}
+              </button>
+            </section>
           ) : null}
         </div>
 
         <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-label="Watermark controls">
           <h2 className="text-lg font-bold text-slate-950">Watermark settings</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {isPdfEditor
-              ? 'The PDF is generated once when you download it; controls do not reprocess the file.'
-              : 'Changes use the same Canvas renderer as the downloaded PNG.'}
+            {generatedImageArtifacts && generatedImageArtifacts.length > 1
+              ? `One shared configuration will be applied to all ${generatedImageArtifacts.length} images.`
+              : isPdfEditor
+                ? 'The same settings will be applied to every PDF page.'
+                : 'Changes use the same Canvas renderer as the final PNG.'}
           </p>
           <div className="mt-6">
             <WatermarkControls
-              disabled={isExporting}
-              isDownloadReady={downloadReadiness.isReady}
+              disabled={isBusy}
+              isDownloadReady={readiness.isReady}
               onPurposeChange={handlePurposeChange}
               onRecipientBlur={handleRecipientBlur}
               onRecipientChange={handleRecipientChange}
@@ -561,7 +645,7 @@ export function WatermarkEditorPage() {
               onSettingsChange={handleSettingsChange}
               onTextChange={handleTextChange}
               purpose={purposeState.purpose}
-              readinessMessage={downloadReadiness.message}
+              readinessMessage={readiness.message}
               recipient={purposeState.recipient}
               recipientError={recipientError}
               settings={settings}

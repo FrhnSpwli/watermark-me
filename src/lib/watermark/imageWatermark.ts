@@ -24,6 +24,7 @@ export type ImageWatermarkErrorCode =
   | 'render'
   | 'validation'
   | 'export'
+  | 'cancelled'
 
 export class ImageWatermarkError extends Error {
   constructor(
@@ -565,6 +566,13 @@ export async function loadPrivateSourceImage(
 
   const blob = await response.blob()
 
+  return loadSourceImageBlob(blob)
+}
+
+export async function loadSourceImageBlob(
+  blob: Blob,
+): Promise<DecodedSourceImage> {
+
   if (!SUPPORTED_IMAGE_MIME_TYPES.has(blob.type)) {
     throw new ImageWatermarkError('This file is not a supported JPEG or PNG image.', 'unsupported')
   }
@@ -596,24 +604,65 @@ export async function loadPrivateSourceImage(
   return decodeWithImageElement(blob)
 }
 
-export function exportCanvasAsPng(canvas: HTMLCanvasElement, filename: string) {
-  return new Promise<void>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new ImageWatermarkError('The PNG export could not be created.', 'export'))
-        return
-      }
+export function canvasToPngBlob(
+  canvas: HTMLCanvasElement,
+  signal?: AbortSignal,
+) {
+  if (signal?.aborted) {
+    return Promise.reject(
+      new ImageWatermarkError('Watermark generation was cancelled.', 'cancelled'),
+    )
+  }
 
-      const objectUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = filename
-      link.style.display = 'none'
-      document.body.append(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
-      resolve()
+  return new Promise<Blob>((resolve, reject) => {
+    const handleAbort = () =>
+      reject(new ImageWatermarkError('Watermark generation was cancelled.', 'cancelled'))
+    signal?.addEventListener('abort', handleAbort, { once: true })
+
+    canvas.toBlob((blob) => {
+      signal?.removeEventListener('abort', handleAbort)
+      if (signal?.aborted) {
+        reject(new ImageWatermarkError('Watermark generation was cancelled.', 'cancelled'))
+      } else if (!blob) {
+        reject(new ImageWatermarkError('The PNG export could not be created.', 'export'))
+      } else {
+        resolve(blob)
+      }
     }, 'image/png')
+  })
+}
+
+export async function generateWatermarkedImageBlob(
+  sourceBlob: Blob,
+  settings: ImageWatermarkSettings,
+  signal: AbortSignal,
+) {
+  const image = await loadSourceImageBlob(sourceBlob)
+  const canvas = document.createElement('canvas')
+
+  try {
+    if (signal.aborted) {
+      throw new ImageWatermarkError('Watermark generation was cancelled.', 'cancelled')
+    }
+    renderImageWatermark(canvas, image, settings)
+    return await canvasToPngBlob(canvas, signal)
+  } finally {
+    image.dispose()
+    canvas.width = 0
+    canvas.height = 0
+  }
+}
+
+export function exportCanvasAsPng(canvas: HTMLCanvasElement, filename: string) {
+  return canvasToPngBlob(canvas).then((blob) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    link.style.display = 'none'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
   })
 }

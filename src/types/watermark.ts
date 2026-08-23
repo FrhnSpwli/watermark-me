@@ -36,3 +36,22 @@ export interface DecodedSourceImage {
   height: number
   dispose: () => void
 }
+
+export type WatermarkResultMimeType = 'image/png' | 'application/pdf'
+export type WatermarkResultExtension = 'png' | 'pdf'
+
+export interface WatermarkResultArtifact {
+  blob: Blob
+  mimeType: WatermarkResultMimeType
+  extension: WatermarkResultExtension
+  filename: string
+}
+
+export interface WatermarkResult {
+  artifacts: WatermarkResultArtifact[]
+}
+
+export interface WatermarkProgress {
+  completed: number
+  total: number
+}

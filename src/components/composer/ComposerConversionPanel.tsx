@@ -5,11 +5,15 @@ import { formatFileSize } from '../../utils/format'
 interface ComposerConversionPanelProps {
   controller: ComposerConversionController
   sourcesReady: boolean
+  handoffError?: string | null
+  onContinueToWatermark?: () => void
 }
 
 export function ComposerConversionPanel({
   controller,
   sourcesReady,
+  handoffError = null,
+  onContinueToWatermark,
 }: ComposerConversionPanelProps) {
   const {
     options,
@@ -199,7 +203,23 @@ export function ComposerConversionPanel({
                 ? `Download ${currentSuccess.filenames[0]}`
                 : `Download ${currentSuccess.result.artifacts.length} files as ZIP`}
           </button>
+          {onContinueToWatermark ? (
+            <button
+              className="ml-2 mt-4 max-w-full rounded-xl border border-emerald-700 bg-white px-5 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+              disabled={interactionLocked}
+              onClick={onContinueToWatermark}
+              type="button"
+            >
+              Continue to Watermark
+            </button>
+          ) : null}
         </div>
+      ) : null}
+
+      {handoffError ? (
+        <p className="mt-3 text-sm font-medium text-red-700" role="alert">
+          {handoffError}
+        </p>
       ) : null}
 
       {downloadLifecycle.status === 'started' ? (

@@ -1,4 +1,6 @@
-import type { ConversionArtifact } from '../../types/conversion'
+interface DownloadArtifact {
+  blob: Blob
+}
 
 export function downloadBlob(blob: Blob, filename: string) {
   const objectUrl = URL.createObjectURL(blob)
@@ -17,7 +19,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 export async function createArtifactsZip(
-  artifacts: ConversionArtifact[],
+  artifacts: DownloadArtifact[],
   filenames: string[],
   onProgress?: (percent: number) => void,
 ) {
