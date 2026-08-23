@@ -32,7 +32,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | 11 | Multi-file Architecture & Safe Migration | ✅ Phase 11 repository implementation complete; live Supabase validation remains manual |
 | 12 | Multi-file Upload & Management | 🟡 Repository implementation complete; manual browser/Supabase acceptance remains |
 | 13 | Document Composer: Selection, Preview & Reordering | Repository implementation complete; manual browser acceptance remains |
-| 14 | Conversion Engine | Not Started |
+| 14 | Conversion Engine | 🟡 Repository implementation complete; browser conversion acceptance remains |
 | 15 | Conversion Output UX | Not Started |
 | 16 | Composer/Converter → Watermark Integration | Not Started |
 | 17 | QA, Security & Performance | Not Started |
@@ -51,7 +51,7 @@ Provide source/page selection, preview, and reordering. Images act as single com
 
 ### Phase 14 — Conversion Engine
 
-Implement browser-side conversion for the v0.2 JPG/JPEG/PNG/PDF matrix, including image conversion, images-to-PDF, selected/reordered PDF pages, PDF pages to images, and mixed image/PDF-page composition to PDF where practical.
+Implement browser-side conversion for the v0.2 JPG/JPEG/PNG/PDF matrix, including image conversion, images-to-PDF, selected/reordered PDF pages, PDF pages to images, and mixed image/PDF-page composition to PDF. Repository implementation now provides typed in-memory artifacts, selected Composer-order authority, native PDF page copying, deterministic image-to-PDF layout, lazy PDF.js rasterization, white-background JPEG encoding, operation-local source caching, progress events, cancellation, and controlled domain errors. Browser-level raster/image acceptance remains; no download UI or persistence is included.
 
 ### Phase 15 — Conversion Output UX
 

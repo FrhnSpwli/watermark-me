@@ -91,6 +91,7 @@ interface RenderPdfPageOptions {
   cssWidth: number
   pixelRatio: number
   signal: AbortSignal
+  background?: string
 }
 
 export async function renderPdfPage({
@@ -100,6 +101,7 @@ export async function renderPdfPage({
   cssWidth,
   pixelRatio,
   signal,
+  background,
 }: RenderPdfPageOptions) {
   let renderTask: RenderTask | null = null
   let page: PDFPageProxy | null = null
@@ -119,7 +121,7 @@ export async function renderPdfPage({
     canvas.height = Math.max(1, Math.floor(viewport.height))
     canvas.style.width = `${Math.max(1, Math.floor(viewport.width / pixelRatio))}px`
     canvas.style.height = `${Math.max(1, Math.floor(viewport.height / pixelRatio))}px`
-    renderTask = page.render({ canvas, viewport })
+    renderTask = page.render({ canvas, viewport, background })
     signal.addEventListener('abort', cancelRender, { once: true })
     await renderTask.promise
   } catch (error) {

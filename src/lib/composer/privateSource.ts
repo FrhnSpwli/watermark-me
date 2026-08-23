@@ -10,12 +10,20 @@ export class ComposerSourceError extends Error {
   }
 }
 
-async function fetchPrivateSource(signedUrl: string) {
+function throwSourceAbort(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    signal.throwIfAborted()
+  }
+}
+
+async function fetchPrivateSource(signedUrl: string, signal?: AbortSignal) {
   let response: Response
 
   try {
-    response = await fetch(signedUrl, { credentials: 'omit' })
+    throwSourceAbort(signal)
+    response = await fetch(signedUrl, { credentials: 'omit', signal })
   } catch {
+    throwSourceAbort(signal)
     throw new ComposerSourceError(
       'The private source could not be downloaded. Check your connection and try again.',
       'access',
@@ -30,6 +38,25 @@ async function fetchPrivateSource(signedUrl: string) {
   }
 
   return response
+}
+
+export async function loadPrivateSourceBlob(
+  signedUrl: string,
+  signal?: AbortSignal,
+) {
+  const response = await fetchPrivateSource(signedUrl, signal)
+
+  try {
+    const blob = await response.blob()
+    throwSourceAbort(signal)
+    return blob
+  } catch {
+    throwSourceAbort(signal)
+    throw new ComposerSourceError(
+      'The private source could not be read in this browser.',
+      'access',
+    )
+  }
 }
 
 function decodeImage(objectUrl: string) {
@@ -72,8 +99,7 @@ export async function loadPrivateImagePreview(
   signedUrl: string,
   expectedMimeType: string,
 ) {
-  const response = await fetchPrivateSource(signedUrl)
-  const responseBlob = await response.blob()
+  const responseBlob = await loadPrivateSourceBlob(signedUrl)
   const mimeType = SUPPORTED_IMAGE_MIME_TYPES.has(responseBlob.type)
     ? responseBlob.type
     : expectedMimeType
@@ -100,10 +126,10 @@ export async function loadPrivateImagePreview(
 }
 
 export async function loadPrivatePdfBytes(signedUrl: string) {
-  const response = await fetchPrivateSource(signedUrl)
+  const responseBlob = await loadPrivateSourceBlob(signedUrl)
 
   try {
-    return new Uint8Array(await response.arrayBuffer())
+    return new Uint8Array(await responseBlob.arrayBuffer())
   } catch {
     throw new ComposerSourceError(
       'The private PDF could not be read in this browser.',

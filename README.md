@@ -22,6 +22,10 @@ Phase 12 adds multi-file upload and source management. Multiple files may be upl
 
 Phase 13 adds a protected, browser-only Document Composer at `/documents/:documentId/compose`. It expands images into one item and PDFs into independently selectable pages, provides lazy previews, and maintains one global local-session order across mixed sources. It does not persist selection/order, generate output files, convert documents, or enter the watermark workflow.
 
+Phase 14 adds a presentation-independent conversion engine beneath the Composer. The engine consumes only selected `ComposerItem` values in their current Composer order and returns typed, in-memory `Blob` artifacts. It supports JPEG to PNG, transparent PNG to JPEG over a deterministic white background, image sources to PDF, native selected/reordered PDF-page copying, PDF-page rasterization to PNG/JPEG, and mixed image/PDF-page PDFs. It exposes operation-local source caching, progress events, and `AbortSignal` cancellation without adding download or output-selection UI.
+
+For PDF output, `pdf-lib` copies selected PDF pages without rasterizing them. Image-backed PDF pages use portrait or landscape A4, a 24-point margin, centered contain-fit placement, and no stretching or clipping. For PDF-to-image output, lazy-loaded PDF.js renders only selected pages at a default 2x scale capped at 4096 pixels on the longest edge. Generated artifacts remain in browser memory and are not uploaded or persisted. Phase 14 requires no database migration, RLS change, or Storage policy change.
+
 ## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
@@ -207,6 +211,7 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run test:phase11` | Check Phase 11 legacy-source compatibility |
 | `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
 | `npm run test:phase13` | Check Composer item creation, selection, and global ordering |
+| `npm run test:phase14` | Check conversion planning, PDF generation, ordering, caching, and cancellation |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -235,10 +240,10 @@ v0.1 implementation through Phase 9 and repository-level Phase 10 validation are
 The current development phase is:
 
 ```text
-Phase 13 — Document Composer: Selection, Preview & Reordering
+Phase 14 — Conversion Engine
 ```
 
-Repository implementation is complete for Phase 13; live browser acceptance remains documented in `ROADMAP.md`. Phase 13 is intentionally limited to local selection, preview, and reordering. It does not implement Phase 14 conversion or later output/watermark handoff phases.
+Repository implementation is complete for Phase 14; browser-level image encoding and PDF raster acceptance remains documented in `ROADMAP.md`. Phase 14 generates valid in-memory artifacts through a domain API only. It does not implement Phase 15 output/download UX or Phase 16 watermark handoff.
 
 ## Project documentation
 
