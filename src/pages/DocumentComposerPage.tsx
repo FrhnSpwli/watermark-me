@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ComposerActivePreview } from '../components/composer/ComposerActivePreview'
+import { ComposerConversionPanel } from '../components/composer/ComposerConversionPanel'
 import { ComposerSelectedOrder } from '../components/composer/ComposerSelectedOrder'
 import { ComposerSourceBrowser } from '../components/composer/ComposerSourceBrowser'
 import { PageHeader } from '../components/ui/PageHeader'
 import { RouteLoadingScreen } from '../components/ui/RouteLoadingScreen'
+import { useComposerConversion } from '../hooks/useComposerConversion'
 import {
   appendComposerItems,
   createComposerItems,
@@ -208,6 +210,13 @@ export function DocumentComposerPage() {
   const failedSourceCount = [...sourceStatuses.values()].filter(
     (status) => status.status === 'error',
   ).length
+  const sourcesReady = Boolean(document) && loadingSourceCount === 0
+  const conversionController = useComposerConversion({
+    documentId: document?.id ?? documentId ?? '',
+    documentName: document?.name ?? 'WatermarkMe Output',
+    items,
+    sourcesReady,
+  })
 
   if (loadedDocumentId !== (documentId ?? '')) {
     return <RouteLoadingScreen message="Loading Composer..." />
@@ -242,8 +251,8 @@ export function DocumentComposerPage() {
 
       <div className="mt-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <PageHeader
-          description="Choose images and PDF pages, then arrange one global output order. Originals and source metadata stay unchanged."
-          eyebrow="Phase 13 - browser-only workspace"
+          description="Choose images and PDF pages, arrange one global order, then convert and download a browser-only result. Originals and source metadata stay unchanged."
+          eyebrow="Phase 15 - conversion output"
           title={document.name}
         />
         <div
@@ -256,7 +265,7 @@ export function DocumentComposerPage() {
         >
           <p className="font-semibold">{readiness.message}</p>
           <p className="mt-1 text-xs">
-            Phase 13 does not generate, convert, watermark, or upload an output file.
+            Selection and order stay local. Generated conversion files are not uploaded.
           </p>
         </div>
       </div>
@@ -290,30 +299,43 @@ export function DocumentComposerPage() {
                 imageUrls={imageUrls}
                 items={items}
                 onActivate={setActiveItemId}
-                onMoveByOffset={(itemId, offset) =>
+                onMoveByOffset={(itemId, offset) => {
+                  conversionController.invalidate()
                   setItems((current) =>
                     moveSelectedComposerItemByOffset(current, itemId, offset),
                   )
-                }
-                onMoveToItem={(itemId, targetItemId) =>
+                }}
+                onMoveToItem={(itemId, targetItemId) => {
+                  conversionController.invalidate()
                   setItems((current) =>
                     moveSelectedComposerItem(current, itemId, targetItemId),
                   )
-                }
+                }}
+                reorderingDisabled={conversionController.interactionLocked}
               />
             </div>
-            <ComposerSourceBrowser
-              activeItemId={activeItemId}
-              imageUrls={imageUrls}
-              items={items}
-              onActivate={setActiveItemId}
-              onSelect={(itemId, selected) =>
-                setItems((current) => setComposerItemSelected(current, itemId, selected))
-              }
-              pdfDocuments={pdfDocuments}
-              sources={sources}
-              sourceStatuses={sourceStatuses}
-            />
+            <div className="space-y-6">
+              <ComposerSourceBrowser
+                activeItemId={activeItemId}
+                imageUrls={imageUrls}
+                items={items}
+                onActivate={setActiveItemId}
+                onSelect={(itemId, selected) => {
+                  conversionController.invalidate()
+                  setItems((current) =>
+                    setComposerItemSelected(current, itemId, selected),
+                  )
+                }}
+                pdfDocuments={pdfDocuments}
+                selectionDisabled={conversionController.interactionLocked}
+                sources={sources}
+                sourceStatuses={sourceStatuses}
+              />
+              <ComposerConversionPanel
+                controller={conversionController}
+                sourcesReady={sourcesReady}
+              />
+            </div>
           </div>
         </>
       )}

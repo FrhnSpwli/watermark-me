@@ -15,6 +15,7 @@ interface ComposerSourceBrowserProps {
   imageUrls: ReadonlyMap<string, string>
   pdfDocuments: ReadonlyMap<string, PdfPreviewDocument>
   activeItemId: string | null
+  selectionDisabled?: boolean
   onActivate: (itemId: string) => void
   onSelect: (itemId: string, selected: boolean) => void
 }
@@ -26,6 +27,7 @@ export function ComposerSourceBrowser({
   imageUrls,
   pdfDocuments,
   activeItemId,
+  selectionDisabled = false,
   onActivate,
   onSelect,
 }: ComposerSourceBrowserProps) {
@@ -128,10 +130,11 @@ export function ComposerSourceBrowser({
                         >
                           {item.kind === 'pdf-page' ? `Page ${item.pageNumber}` : 'Image'}
                         </button>
-                        <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                        <label className={`mt-2 flex items-center gap-2 text-xs font-semibold text-slate-700 ${selectionDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                           <input
                             checked={item.selected}
                             className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            disabled={selectionDisabled}
                             onChange={(event) => onSelect(item.id, event.target.checked)}
                             type="checkbox"
                           />
