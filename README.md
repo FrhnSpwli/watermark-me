@@ -26,6 +26,10 @@ Phase 14 adds a presentation-independent conversion engine beneath the Composer.
 
 For PDF output, `pdf-lib` copies selected PDF pages without rasterizing them. Image-backed PDF pages use portrait or landscape A4, a 24-point margin, centered contain-fit placement, and no stretching or clipping. For PDF-to-image output, lazy-loaded PDF.js renders only selected pages at a default 2x scale capped at 4096 pixels on the longest edge. Generated artifacts remain in browser memory and are not uploaded or persisted. Phase 14 requires no database migration, RLS change, or Storage policy change.
 
+Phase 15 integrates that engine into the existing Composer. Available PDF, PNG, and JPEG targets are derived from the exact selected content rather than exposed as unsupported choices. The output panel explains whether conversion creates one file or one image per selected PDF page, surfaces JPEG/alpha and rasterization warnings, reports real item progress, supports cancellation, and invalidates an old result as soon as selection, order, target, or document context changes.
+
+Single artifacts use a temporary browser download URL. Multiple image artifacts are packaged into one locally generated ZIP using lazy-loaded `jszip`, avoiding repeated automatic browser downloads. Filenames use the sanitized logical document name and ordered `_001`, `_002`, ... suffixes for multi-output artifacts. Generated Blobs, ZIPs, and download URLs remain session-local; they are never written to the database or Storage.
+
 ## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
@@ -153,6 +157,7 @@ Intermediate converted output should stay in browser memory unless a later featu
 - HTML Canvas API for image watermarking
 - `pdf-lib` for browser-based PDF watermarking/manipulation
 - Lazy-loaded `pdfjs-dist` for private, browser-side PDF page previews in the Composer
+- Lazy-loaded `jszip` for one controlled browser download of multi-image conversion output
 
 Additional v0.2 dependencies should be introduced only when needed. Heavy PDF preview/rendering code should be lazy-loaded when practical.
 
@@ -212,6 +217,7 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
 | `npm run test:phase13` | Check Composer item creation, selection, and global ordering |
 | `npm run test:phase14` | Check conversion planning, PDF generation, ordering, caching, and cancellation |
+| `npm run test:phase15` | Check output compatibility, filenames, stale-result keys, warnings, and ZIP contents |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -240,10 +246,10 @@ v0.1 implementation through Phase 9 and repository-level Phase 10 validation are
 The current development phase is:
 
 ```text
-Phase 14 — Conversion Engine
+Phase 15 — Conversion Output UX
 ```
 
-Repository implementation is complete for Phase 14; browser-level image encoding and PDF raster acceptance remains documented in `ROADMAP.md`. Phase 14 generates valid in-memory artifacts through a domain API only. It does not implement Phase 15 output/download UX or Phase 16 watermark handoff.
+Repository implementation is complete for Phase 15; authenticated manual browser acceptance remains documented in `ROADMAP.md`. Phase 15 provides browser-local conversion and download UX but does not implement the Phase 16 watermark handoff or persist generated output.
 
 ## Project documentation
 
