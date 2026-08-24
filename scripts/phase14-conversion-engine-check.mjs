@@ -321,8 +321,103 @@ try {
     [imageItem('scan', 'image/png', 0)],
     'image/jpeg',
   )
-  check(jpegPlan.mode === 'convert-image', 'JPEG to PNG selects the image conversion adapter.')
-  check(pngPlan.mode === 'convert-image', 'PNG to JPEG selects the image conversion adapter.')
+  check(jpegPlan.mode === 'convert-images', 'JPEG to PNG selects ordered image conversion.')
+  check(pngPlan.mode === 'convert-images', 'PNG to JPEG selects ordered image conversion.')
+
+  const orderedImageItems = [
+    imageItem('image-a', 'image/jpeg', 1),
+    imageItem('image-b', 'image/png', 2),
+    imageItem('image-c', 'image/jpeg', 0),
+  ]
+  const imageSourceBlobs = new Map([
+    ['image-a', new Blob(['jpeg-a'], { type: 'image/jpeg' })],
+    ['image-b', new Blob(['png-b'], { type: 'image/png' })],
+    ['image-c', new Blob(['jpeg-c'], { type: 'image/jpeg' })],
+  ])
+  const jpegAdapterCalls = []
+  const jpegBatch = await engine.convertComposerSelection({
+    items: orderedImageItems,
+    target: 'image/jpeg',
+    sourceResolver: async (sourceFileId) => imageSourceBlobs.get(sourceFileId),
+    imageConverter: async (blob, target) => {
+      jpegAdapterCalls.push({ blob, target })
+      return new Blob([`jpeg:${await blob.text()}`], { type: target })
+    },
+  })
+  check(jpegBatch.artifacts.length === 3, 'Three selected images create three JPEG artifacts.')
+  check(
+    jpegBatch.artifacts.map((artifact) => artifact.itemIds[0]).join(',') ===
+      'image:image-c,image:image-a,image:image-b',
+    'Multi-image JPEG artifacts preserve current Composer order.',
+  )
+  check(
+    jpegBatch.artifacts[0].blob === imageSourceBlobs.get('image-c') &&
+      jpegBatch.artifacts[1].blob === imageSourceBlobs.get('image-a'),
+    'JPEG sources pass through to JPEG output without replacing their Blob bytes.',
+  )
+  check(
+    jpegAdapterCalls.length === 1 &&
+      jpegAdapterCalls[0].blob === imageSourceBlobs.get('image-b') &&
+      jpegAdapterCalls[0].target === 'image/jpeg',
+    'Only the PNG source invokes the JPEG adapter in a mixed image batch.',
+  )
+  check(
+    jpegBatch.artifacts.every(
+      (artifact) => artifact.mimeType === 'image/jpeg' && artifact.extension === 'jpg',
+    ),
+    'Every JPEG batch artifact reports its actual target MIME and extension.',
+  )
+
+  const pngAdapterCalls = []
+  const pngBatch = await engine.convertComposerSelection({
+    items: orderedImageItems,
+    target: 'image/png',
+    sourceResolver: async (sourceFileId) => imageSourceBlobs.get(sourceFileId),
+    imageConverter: async (blob, target) => {
+      pngAdapterCalls.push({ blob, target })
+      return new Blob([`png:${await blob.text()}`], { type: target })
+    },
+  })
+  check(pngBatch.artifacts.length === 3, 'Three selected images create three PNG artifacts.')
+  check(
+    pngBatch.artifacts.map((artifact) => artifact.itemIds[0]).join(',') ===
+      'image:image-c,image:image-a,image:image-b',
+    'Multi-image PNG artifacts preserve current Composer order.',
+  )
+  check(
+    pngBatch.artifacts[2].blob === imageSourceBlobs.get('image-b'),
+    'PNG sources pass through to PNG output without replacing their Blob bytes.',
+  )
+  check(
+    pngAdapterCalls.length === 2 &&
+      pngAdapterCalls.every((call) => call.target === 'image/png'),
+    'Only JPEG sources invoke the PNG adapter in a mixed image batch.',
+  )
+
+  let sameFormatAdapterCalls = 0
+  const sameJpegBlob = imageSourceBlobs.get('image-a')
+  const sameJpeg = await engine.convertComposerSelection({
+    items: [imageItem('image-a', 'image/jpeg', 0)],
+    target: 'image/jpeg',
+    sourceResolver: async () => sameJpegBlob,
+    imageConverter: async () => {
+      sameFormatAdapterCalls += 1
+      return new Blob(['unexpected'], { type: 'image/jpeg' })
+    },
+  })
+  const samePngBlob = imageSourceBlobs.get('image-b')
+  const samePng = await engine.convertComposerSelection({
+    items: [imageItem('image-b', 'image/png', 0)],
+    target: 'image/png',
+    sourceResolver: async () => samePngBlob,
+    imageConverter: async () => {
+      sameFormatAdapterCalls += 1
+      return new Blob(['unexpected'], { type: 'image/png' })
+    },
+  })
+  check(sameFormatAdapterCalls === 0, 'Same-format JPEG and PNG never invoke the re-encoding adapter.')
+  check(sameJpeg.artifacts[0].blob === sameJpegBlob, 'JPEG to JPEG returns the source Blob unchanged.')
+  check(samePng.artifacts[0].blob === samePngBlob, 'PNG to PNG returns the source Blob unchanged.')
 
   const rasterItems = [
     pdfItem('pdf-a', 0, 2),
@@ -407,6 +502,39 @@ try {
   check(
     midReadResult?.code === 'conversion-cancelled',
     'Cancellation during a source read returns no partial success.',
+  )
+
+  const imageBatchController = new AbortController()
+  let cancelledImageBatch = null
+  let cancelledImageResolverCalls = 0
+  try {
+    await engine.convertComposerSelection({
+      items: [
+        imageItem('image-a', 'image/jpeg', 0),
+        imageItem('image-b', 'image/png', 1),
+        imageItem('image-c', 'image/jpeg', 2),
+      ],
+      target: 'image/jpeg',
+      signal: imageBatchController.signal,
+      sourceResolver: async (sourceFileId) => {
+        cancelledImageResolverCalls += 1
+        return imageSourceBlobs.get(sourceFileId)
+      },
+      imageConverter: async () => {
+        imageBatchController.abort()
+        return new Blob(['cancelled'], { type: 'image/jpeg' })
+      },
+    })
+  } catch (error) {
+    cancelledImageBatch = error
+  }
+  check(
+    cancelledImageBatch?.code === 'conversion-cancelled',
+    'Cancelling a multi-image conversion returns no partial success result.',
+  )
+  check(
+    cancelledImageResolverCalls === 2,
+    'Cancellation stops remaining multi-image source work.',
   )
 
   const progressResult = await engine.convertComposerSelection({
