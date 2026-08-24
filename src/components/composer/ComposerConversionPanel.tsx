@@ -31,6 +31,7 @@ export function ComposerConversionPanel({
     wasCancelled,
     downloadLifecycle,
     download,
+    downloadArtifact,
   } = controller
   const outputSize = currentSuccess?.result.artifacts.reduce(
     (total, artifact) => total + artifact.blob.size,
@@ -186,9 +187,22 @@ export function ComposerConversionPanel({
             {selectedOption?.label ?? 'output'} {currentSuccess.result.artifacts.length === 1 ? 'file' : 'files'} generated
             {outputSize === undefined ? '.' : ` (${formatFileSize(outputSize)} total).`}
           </p>
-          <ul className="mt-3 max-h-36 space-y-1 overflow-y-auto rounded-lg bg-white/70 p-3 font-mono text-xs text-slate-700">
-            {currentSuccess.filenames.map((filename) => (
-              <li className="break-all" key={filename}>{filename}</li>
+          <ul className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-lg bg-white/70 p-3 text-xs text-slate-700">
+            {currentSuccess.filenames.map((filename, index) => (
+              <li className="flex flex-wrap items-center justify-between gap-2" key={filename}>
+                <span className="min-w-0 break-all font-mono">{filename}</span>
+                {currentSuccess.result.artifacts.length > 1 ? (
+                  <button
+                    aria-label={`Download ${filename}`}
+                    className="shrink-0 rounded-lg border border-emerald-700 bg-white px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                    disabled={interactionLocked}
+                    onClick={() => downloadArtifact(index)}
+                    type="button"
+                  >
+                    Download
+                  </button>
+                ) : null}
+              </li>
             ))}
           </ul>
           <button
@@ -201,7 +215,7 @@ export function ComposerConversionPanel({
               ? `Preparing ZIP... ${downloadLifecycle.percent}%`
               : currentSuccess.result.artifacts.length === 1
                 ? `Download ${currentSuccess.filenames[0]}`
-                : `Download ${currentSuccess.result.artifacts.length} files as ZIP`}
+                : 'Download all as ZIP'}
           </button>
           {onContinueToWatermark ? (
             <button

@@ -38,11 +38,19 @@ export type ConversionSourceResolver = (
   signal: AbortSignal,
 ) => Promise<Blob>
 
+export type ImageConversionAdapter = (
+  sourceBlob: Blob,
+  target: Extract<ConversionMimeType, 'image/png' | 'image/jpeg'>,
+  signal: AbortSignal,
+) => Promise<Blob>
+
 export interface ConvertComposerSelectionOptions {
   items: ComposerItem[]
   target: ConversionMimeType
   sourceResolver: ConversionSourceResolver
   signal?: AbortSignal
+  /** Optional adapter override used by focused domain tests. */
+  imageConverter?: ImageConversionAdapter
   /** Progress callback failures are isolated and never fail conversion. */
   onProgress?: (progress: ConversionProgress) => void
 }

@@ -15,12 +15,18 @@ function check(condition, message) {
   checkCount += 1
 }
 
-function imageItem(sourceFileId, mimeType, composerOrder, selected = true) {
+function imageItem(
+  sourceFileId,
+  mimeType,
+  composerOrder,
+  selected = true,
+  sourceName = `${sourceFileId}.${mimeType === 'image/png' ? 'png' : 'jpg'}`,
+) {
   return {
     id: `image:${sourceFileId}`,
     kind: 'image-file',
     sourceFileId,
-    sourceName: `${sourceFileId}.${mimeType === 'image/png' ? 'png' : 'jpg'}`,
+    sourceName,
     mimeType,
     selected,
     initialOrder: composerOrder,
@@ -69,14 +75,14 @@ try {
 
   const singleJpeg = [imageItem('photo', 'image/jpeg', 0)]
   const jpegOptions = output.getConversionOptions(singleJpeg)
-  check(targets(jpegOptions) === 'application/pdf,image/png', 'Single JPEG offers only PDF and PNG.')
+  check(targets(jpegOptions) === 'application/pdf,image/png,image/jpeg', 'Single JPEG offers PDF, PNG, and JPEG.')
   check(output.getDefaultConversionTarget(singleJpeg) === 'image/png', 'Single JPEG defaults to PNG conversion.')
   check(jpegOptions.find((option) => option.target === 'image/png').outputShape === 'single', 'JPEG to PNG predicts one artifact.')
   check(jpegOptions.find((option) => option.target === 'image/png').warnings[0].includes('does not restore'), 'JPEG to PNG explains that quality is not restored.')
 
   const singlePng = [imageItem('scan', 'image/png', 0)]
   const pngOptions = output.getConversionOptions(singlePng)
-  check(targets(pngOptions) === 'application/pdf,image/jpeg', 'Single PNG offers only PDF and JPEG.')
+  check(targets(pngOptions) === 'application/pdf,image/png,image/jpeg', 'Single PNG offers PDF, PNG, and JPEG.')
   check(output.getDefaultConversionTarget(singlePng) === 'image/jpeg', 'Single PNG defaults to JPEG conversion.')
   const pngToJpegWarnings = pngOptions.find((option) => option.target === 'image/jpeg').warnings.join(' ')
   check(pngToJpegWarnings.includes('Transparent areas'), 'PNG to JPEG warns about a white transparency fill.')
@@ -87,9 +93,26 @@ try {
     imageItem('back', 'image/png', 1),
   ]
   const multipleImageOptions = output.getConversionOptions(multipleImages)
-  check(targets(multipleImageOptions) === 'application/pdf', 'Multiple images offer only combined PDF.')
+  check(targets(multipleImageOptions) === 'application/pdf,image/png,image/jpeg', 'Mixed JPEG and PNG images offer PDF, PNG, and JPEG.')
   check(output.getDefaultConversionTarget(multipleImages) === 'application/pdf', 'Multiple images default to PDF.')
   check(multipleImageOptions[0].artifactCount === 1, 'Multiple-image PDF predicts one artifact.')
+  check(multipleImageOptions.find((option) => option.target === 'image/png').artifactCount === 2, 'Multiple images predict one PNG artifact per image.')
+  check(multipleImageOptions.find((option) => option.target === 'image/jpeg').artifactCount === 2, 'Multiple images predict one JPEG artifact per image.')
+  check(multipleImageOptions.find((option) => option.target === 'image/png').description === 'One PNG file per selected image.', 'PNG readiness describes independent image outputs.')
+  check(multipleImageOptions.find((option) => option.target === 'image/jpeg').description === 'One JPEG file per selected image.', 'JPEG readiness describes independent image outputs.')
+  const multipleJpegOptions = output.getConversionOptions([
+    imageItem('one', 'image/jpeg', 0),
+    imageItem('two', 'image/jpeg', 1),
+  ])
+  check(targets(multipleJpegOptions) === 'application/pdf,image/png,image/jpeg', 'Two JPEG images offer all three output targets.')
+  const multiplePngOptions = output.getConversionOptions([
+    imageItem('one', 'image/png', 0),
+    imageItem('two', 'image/png', 1),
+  ])
+  check(targets(multiplePngOptions) === 'application/pdf,image/png,image/jpeg', 'Two PNG images offer all three output targets.')
+  const multiJpegWarnings = multipleImageOptions.find((option) => option.target === 'image/jpeg').warnings.join(' ')
+  check(multiJpegWarnings.includes('Transparent areas'), 'A PNG in a JPEG batch retains the white-background warning.')
+  check(multiJpegWarnings.includes('lossy'), 'A PNG in a JPEG batch retains the lossy-compression warning.')
 
   const pdfPages = [
     pdfItem('contract', 4, 0),
@@ -135,6 +158,53 @@ try {
   check(output.createArtifactFilenames('Document', [{ ...artifacts[0], extension: 'pdf', mimeType: 'application/pdf' }])[0] === 'Document.pdf', 'PDF artifacts use the controlled .pdf extension.')
   check(output.createZipFilename('KTP Test Multi') === 'KTP_Test_Multi.zip', 'ZIP uses the same sanitized document base name.')
 
+  const namedImageItems = [
+    imageItem('ktp', 'image/jpeg', 0, true, 'KTP.jpg'),
+    imageItem('kis', 'image/jpeg', 1, true, 'KIS.jpg'),
+  ]
+  const namedImageArtifacts = namedImageItems.map((item, index) => ({
+    blob: new Blob([index === 0 ? 'ktp-output' : 'kis-output'], { type: 'image/png' }),
+    mimeType: 'image/png',
+    extension: 'png',
+    itemIds: [item.id],
+  }))
+  const namedImageFilenames = output.createArtifactFilenames(
+    'Identity Package',
+    namedImageArtifacts,
+    namedImageItems,
+  )
+  check(namedImageFilenames.join(',') === 'KTP.png,KIS.png', 'Multi-image filenames derive from each source and replace its extension.')
+
+  const collidingItems = [
+    imageItem('front-jpeg', 'image/jpeg', 0, true, 'front.jpg'),
+    imageItem('front-png', 'image/png', 1, true, 'front.png'),
+  ]
+  const collidingArtifacts = collidingItems.map((item) => ({
+    blob: new Blob([item.id], { type: 'image/png' }),
+    mimeType: 'image/png',
+    extension: 'png',
+    itemIds: [item.id],
+  }))
+  const collisionNames = output.createArtifactFilenames(
+    'Front and Back',
+    collidingArtifacts,
+    collidingItems,
+  )
+  check(collisionNames.join(',') === 'front.png,front_002.png', 'Source filename collisions receive deterministic ordered suffixes.')
+  check(new Set(collisionNames.map((name) => name.toLocaleLowerCase())).size === 2, 'Collision handling prevents duplicate ZIP or download names.')
+
+  const individualDownloads = namedImageArtifacts.map((_, index) =>
+    downloads.getArtifactDownload(
+      namedImageArtifacts,
+      namedImageFilenames,
+      index,
+    ),
+  )
+  check(individualDownloads.every(Boolean), 'Every multi-output artifact has individual download metadata.')
+  check(individualDownloads[1].filename === 'KIS.png', 'An individual download resolves only the requested ordered artifact.')
+  check(individualDownloads[1].blob === namedImageArtifacts[1].blob, 'Individual download metadata retains the exact generated Blob.')
+  check(downloads.getArtifactDownload(namedImageArtifacts, namedImageFilenames, 2) === null, 'Out-of-range individual downloads fail safely.')
+
   const originalKey = output.createConversionInputKey('document-a', pdfPages, 'application/pdf')
   const reorderedPages = pdfPages.map((item, index) => ({ ...item, composerOrder: 2 - index }))
   const reorderedKey = output.createConversionInputKey('document-a', reorderedPages, 'application/pdf')
@@ -146,6 +216,18 @@ try {
   check(!output.isConversionInputCurrent(originalKey, selectionKey), 'Selection changes make a result stale.')
   check(!output.isConversionInputCurrent(originalKey, targetKey), 'Target changes make a result stale.')
   check(!output.isConversionInputCurrent(originalKey, documentKey), 'Document changes make a result stale.')
+  const multiImageKey = output.createConversionInputKey('document-a', multipleImages, 'image/png')
+  const reorderedImages = multipleImages.map((item, index) => ({
+    ...item,
+    composerOrder: multipleImages.length - index,
+  }))
+  check(
+    !output.isConversionInputCurrent(
+      multiImageKey,
+      output.createConversionInputKey('document-a', reorderedImages, 'image/png'),
+    ),
+    'Reordering a multi-image result invalidates all individual and ZIP output.',
+  )
 
   const sourceError = new errors.ConversionError('provider secret', 'source-unavailable')
   const safeMessage = output.getConversionErrorMessage(sourceError)
@@ -171,6 +253,15 @@ try {
   check(await parsedZip.file(filenames[0]).async('string') === 'page-five', 'First ZIP entry contains the first generated artifact.')
   check(await parsedZip.file(filenames[2]).async('string') === 'page-four', 'Last ZIP entry contains the last generated artifact.')
   check(!zipEntries.some((entry) => /original|metadata|storage/i.test(entry)), 'ZIP contains no source or persistence metadata entries.')
+
+  const namedZip = await downloads.createArtifactsZip(
+    namedImageArtifacts,
+    namedImageFilenames,
+  )
+  const namedZipEntries = Object.keys(
+    (await JSZip.loadAsync(await namedZip.arrayBuffer())).files,
+  )
+  check(namedZipEntries.join(',') === 'KTP.png,KIS.png', 'Image-only ZIP contains every source-derived artifact in Composer order.')
 
   console.log(`Phase 15 conversion output checks: ${checkCount} passed`)
 } finally {

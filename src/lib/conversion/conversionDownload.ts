@@ -2,6 +2,20 @@ interface DownloadArtifact {
   blob: Blob
 }
 
+export function getArtifactDownload(
+  artifacts: ConversionArtifact[],
+  filenames: string[],
+  index: number,
+) {
+  if (artifacts.length !== filenames.length || index < 0) {
+    return null
+  }
+
+  const artifact = artifacts[index]
+  const filename = filenames[index]
+  return artifact && filename ? { blob: artifact.blob, filename } : null
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')

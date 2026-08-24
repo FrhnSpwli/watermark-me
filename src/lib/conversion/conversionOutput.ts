@@ -76,6 +76,7 @@ function getWarnings(
 function getOutputDescription(
   target: ConversionMimeType,
   artifactCount: number,
+  sourceKind: 'image' | 'pdf-page',
 ) {
   if (target === 'application/pdf') {
     return 'One combined PDF file in the current Composer order.'
@@ -84,7 +85,9 @@ function getOutputDescription(
   const label = target === 'image/png' ? 'PNG' : 'JPEG'
   return artifactCount === 1
     ? `One ${label} image file.`
-    : `${artifactCount} ${label} image files, one per selected PDF page.`
+    : sourceKind === 'image'
+      ? `One ${label} file per selected image.`
+      : `One ${label} image file per selected PDF page.`
 }
 
 export function getConversionOptions(
@@ -94,14 +97,18 @@ export function getConversionOptions(
     try {
       const plan = createConversionPlan(items, target)
       const artifactCount =
-        plan.mode === 'rasterize-pdf-pages' ? plan.items.length : 1
+        plan.mode === 'compose-pdf' ? 1 : plan.items.length
 
       return [{
         target,
         label,
         artifactCount,
         outputShape: artifactCount === 1 ? 'single' : 'multiple',
-        description: getOutputDescription(target, artifactCount),
+        description: getOutputDescription(
+          target,
+          artifactCount,
+          plan.mode === 'convert-images' ? 'image' : 'pdf-page',
+        ),
         warnings: getWarnings(items, target),
       }]
     } catch (error) {
@@ -191,7 +198,38 @@ export function sanitizeOutputBaseName(documentName: string) {
 export function createArtifactFilenames(
   documentName: string,
   artifacts: ConversionArtifact[],
+  items: ComposerItem[] = [],
 ) {
+  const itemById = new Map(items.map((item) => [item.id, item]))
+  const sourceNames = artifacts.map((artifact) => {
+    const item =
+      artifact.itemIds.length === 1
+        ? itemById.get(artifact.itemIds[0])
+        : null
+    return item?.kind === 'image-file' ? item.sourceName : null
+  })
+
+  if (artifacts.length > 1 && sourceNames.every(Boolean)) {
+    const usedNames = new Set<string>()
+    return artifacts.map((artifact, index) => {
+      const baseName = sanitizeOutputBaseName(sourceNames[index] ?? '')
+      let collisionIndex = 1
+      let filename = `${baseName}.${artifact.extension}`
+
+      while (usedNames.has(filename.toLocaleLowerCase())) {
+        collisionIndex += 1
+        const suffix = `_${String(collisionIndex).padStart(3, '0')}`
+        const uniqueBase = baseName
+          .slice(0, MAX_OUTPUT_BASENAME_LENGTH - suffix.length)
+          .replace(/[._-]+$/g, '')
+        filename = `${uniqueBase}${suffix}.${artifact.extension}`
+      }
+
+      usedNames.add(filename.toLocaleLowerCase())
+      return filename
+    })
+  }
+
   const baseName = sanitizeOutputBaseName(documentName)
   const numberWidth = Math.max(3, String(artifacts.length).length)
 
