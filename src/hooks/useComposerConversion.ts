@@ -3,6 +3,7 @@ import { convertComposerSelection } from '../lib/conversion/conversionEngine'
 import {
   createArtifactsZip,
   downloadBlob,
+  getArtifactDownload,
 } from '../lib/conversion/conversionDownload'
 import {
   createArtifactFilenames,
@@ -176,7 +177,11 @@ export function useComposerConversion({
         status: 'success',
         inputKey,
         result,
-        filenames: createArtifactFilenames(documentName, result.artifacts),
+        filenames: createArtifactFilenames(
+          documentName,
+          result.artifacts,
+          items,
+        ),
       })
     } catch (error) {
       if (
@@ -266,6 +271,34 @@ export function useComposerConversion({
     }
   }, [currentSuccess, documentName, interactionLocked])
 
+  const downloadArtifact = useCallback((index: number) => {
+    if (!currentSuccess || interactionLocked) {
+      return
+    }
+
+    const artifactDownload = getArtifactDownload(
+      currentSuccess.result.artifacts,
+      currentSuccess.filenames,
+      index,
+    )
+    if (!artifactDownload) {
+      return
+    }
+
+    try {
+      downloadBlob(artifactDownload.blob, artifactDownload.filename)
+      setDownloadLifecycle({
+        status: 'started',
+        message: `Download started for ${artifactDownload.filename}.`,
+      })
+    } catch {
+      setDownloadLifecycle({
+        status: 'error',
+        message: 'The browser could not start this download. Please try again.',
+      })
+    }
+  }, [currentSuccess, interactionLocked])
+
   return {
     options,
     target,
@@ -283,6 +316,7 @@ export function useComposerConversion({
     wasCancelled,
     downloadLifecycle,
     download,
+    downloadArtifact,
   }
 }
 
