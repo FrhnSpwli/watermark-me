@@ -20,7 +20,7 @@ import {
 
 export type ConversionPlan =
   | { mode: 'compose-pdf'; items: ComposerItem[] }
-  | { mode: 'convert-image'; items: [ImageComposerItem] }
+  | { mode: 'convert-images'; items: ImageComposerItem[] }
   | { mode: 'rasterize-pdf-pages'; items: PdfPageComposerItem[] }
 
 function isSupportedComposerItem(item: ComposerItem) {
@@ -64,15 +64,10 @@ export function createConversionPlan(
     }
   }
 
-  if (selectedItems.length === 1 && selectedItems[0].kind === 'image-file') {
-    const imageItem = selectedItems[0]
-    const isJpegToPng =
-      imageItem.mimeType === 'image/jpeg' && target === 'image/png'
-    const isPngToJpeg =
-      imageItem.mimeType === 'image/png' && target === 'image/jpeg'
-
-    if (isJpegToPng || isPngToJpeg) {
-      return { mode: 'convert-image', items: [imageItem] }
+  if (selectedItems.every((item) => item.kind === 'image-file')) {
+    return {
+      mode: 'convert-images',
+      items: selectedItems as ImageComposerItem[],
     }
   }
 
@@ -96,6 +91,7 @@ export async function convertComposerSelection({
   target,
   sourceResolver,
   signal: providedSignal,
+  imageConverter: providedImageConverter,
   onProgress,
 }: ConvertComposerSelectionOptions): Promise<ConversionResult> {
   const signal = providedSignal ?? new AbortController().signal
@@ -195,19 +191,41 @@ export async function convertComposerSelection({
           'unsupported-conversion',
         )
       }
-      const [item] = plan.items
-      const sourceBlob = await getSourceBlob(item.sourceFileId, 0)
-      reportProgress('decoding', 0)
-      const { convertImageBlob } = await import('./imageConversion')
-      const blob = await convertImageBlob(sourceBlob, target, signal)
-      reportProgress('encoding', 1)
-      reportProgress('finalizing', 1)
-      artifacts = [{
-        blob,
-        mimeType: target,
-        extension: target === 'image/png' ? 'png' : 'jpg',
-        itemIds: [item.id],
-      }]
+      let convertImage = providedImageConverter
+      if (!convertImage && plan.items.some((item) => item.mimeType !== target)) {
+        const imageConversion = await import('./imageConversion')
+        convertImage = imageConversion.convertImageBlob
+      }
+
+      artifacts = []
+      for (let index = 0; index < plan.items.length; index += 1) {
+        throwIfConversionCancelled(signal)
+        const item = plan.items[index]
+        const sourceBlob = await getSourceBlob(item.sourceFileId, index)
+        throwIfConversionCancelled(signal)
+        let blob = sourceBlob
+
+        if (item.mimeType !== target) {
+          if (!convertImage) {
+            throw new ConversionError(
+              'Image conversion is unavailable.',
+              'output-generation-failed',
+            )
+          }
+          reportProgress('decoding', index)
+          blob = await convertImage(sourceBlob, target, signal)
+          throwIfConversionCancelled(signal)
+          reportProgress('encoding', index + 1)
+        }
+
+        artifacts.push({
+          blob,
+          mimeType: target,
+          extension: target === 'image/png' ? 'png' : 'jpg',
+          itemIds: [item.id],
+        })
+        reportProgress('finalizing', index + 1)
+      }
     }
 
     throwIfConversionCancelled(signal)
