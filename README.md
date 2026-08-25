@@ -36,6 +36,8 @@ Generated images reuse the existing Canvas watermark settings and renderer. A ho
 
 The handoff is deliberately ephemeral: refresh, a missing handoff, or an authenticated-user change makes the converted file unavailable and directs the user back to Composer to convert again. Direct Phase 15 download remains available. Phase 16 adds no browser persistence, upload, database migration, RLS change, or Storage-policy change.
 
+Phase 17 adds cross-phase release-hardening coverage and cancels in-flight private source reads when Composer or Watermark Editor unmounts. Repository validation covers deterministic conversion/order, filename and ZIP safety, handoff ownership, legacy/nested source compatibility, migration/RLS invariants, cleanup wiring, and lazy-loading boundaries. Browser, live Supabase, responsive, and stress acceptance remain intentionally manual; follow [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md).
+
 ## v0.1 capabilities
 
 - Email and password authentication with required email confirmation
@@ -225,6 +227,7 @@ Add the equivalent production origin and `/auth/confirm` URL before deploying.
 | `npm run test:phase14` | Check conversion planning, PDF generation, ordering, caching, and cancellation |
 | `npm run test:phase15` | Check output compatibility, filenames, stale-result keys, warnings, and ZIP contents |
 | `npm run test:phase16` | Check in-memory handoff authority, lifecycle, batch watermarking, filenames, and stale-result safety |
+| `npm run test:phase17` | Check cross-phase release, privacy, ordering, cleanup, and lazy-loading invariants |
 | `npm run test:purpose` | Check the purpose-based workflow |
 | `npm run test:watermark` | Check image watermark layout and rendering |
 | `npm run test:pdf-watermark` | Check PDF watermark generation |
@@ -253,17 +256,18 @@ v0.1 implementation through Phase 9 and repository-level Phase 10 validation are
 The current development phase is:
 
 ```text
-Phase 16 — Converter → Watermark Integration
+Phase 17 - QA, Security, Performance & Release Hardening
 ```
 
-Repository implementation is complete for Phase 16; authenticated manual browser acceptance remains documented in `ROADMAP.md`. Converted output can now enter the existing watermark workspace without an intermediate download or upload. Temporary conversion and final watermark artifacts remain browser-memory-only, and Phase 17 has not been implemented.
+Phase 17 repository validation is complete. Authenticated browser and live two-account Supabase acceptance remain pending and are documented in [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md). The missing v0.2 specification remains a release-documentation blocker tracked by [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9); v0.2 is not release-complete while that issue remains open.
 
 ## Project documentation
 
 - [`README.md`](README.md) — current project overview
 - [`ROADMAP.md`](ROADMAP.md) — active phase and status
 - [`V0.1_MVP_BUILD_SPEC.md`](V0.1_MVP_BUILD_SPEC.md) — historical v0.1 product/engineering specification
-- [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) — active v0.2 architecture and implementation plan
+- `V0.2_DOCUMENT_COMPOSER.md` - intended v0.2 architecture document; currently missing and tracked by [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9)
+- [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md) - live Supabase and browser acceptance runbook
 - [`AGENTS.md`](AGENTS.md) — rules for coding agents working on the repository
 - [`supabase/README.md`](supabase/README.md) — database and Storage setup
 
