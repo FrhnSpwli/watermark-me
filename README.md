@@ -39,9 +39,9 @@ docs/screenshots/dashboard.png
 Insert later with:
 ![WatermarkMe dashboard](docs/screenshots/dashboard.png)
 -->
+![WatermarkMe landing page](docs/image.png)
 
 ## Built for safer sharing
-![WatermarkMe landing page](docs/image.png)
 
 <table>
   <tr>
