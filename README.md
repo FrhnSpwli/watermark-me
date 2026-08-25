@@ -1,275 +1,398 @@
-<div align="center">
-  <img src="src/public/assets/logo.png" alt="WatermarkMe logo" width="112" />
-  <h1>WatermarkMe</h1>
-  <p><strong>Protect your identity before sharing it.</strong></p>
-  <p>
-    A privacy-first web application for preparing, composing, converting, and
-    watermarking sensitive documents before sharing them.
-  </p>
-</div>
+# WatermarkMe
 
-## About
+**Privacy-first document watermarking**
 
-WatermarkMe helps users prepare safer copies of identity and supporting documents before sending them to a company, bank, university, landlord, insurer, or another recipient.
+**Protect your identity before sharing it.**
 
-The v0.1 workflow lets users upload a private original, choose why it is being shared, customize a watermark, and download a separate watermarked copy. Original stored documents are never overwritten. Image and PDF watermarking run locally in the browser, and generated copies are downloaded directly without being uploaded back to Supabase.
+WatermarkMe helps you create purpose-specific copies of sensitive documents. Compose images and selected PDF pages, convert them into the format you need, apply a watermark, and download the result while keeping every stored original unchanged.
 
-The **v0.2 — Document Composer & Converter** release expands a document from a single physical file into a logical document that can contain multiple private source files. This enables use cases such as a front/back identity card, page selection from PDFs, source/page reordering, and local conversion between supported image/PDF formats.
+<!--
+PRODUCT SCREENSHOT: DASHBOARD / PRODUCT OVERVIEW
 
-Phase 11 introduces a backward-compatible `document_files` relation that backfills each legacy v0.1 document into exactly one source record while keeping storage paths, metadata, and ownership semantics intact.
+Recommended capture:
+- authenticated dashboard
+- several documents visible
+- clean desktop viewport
+- avoid DevTools/browser clutter
 
-Phase 12 adds multi-file upload and source management. Multiple files may be uploaded as separate documents or combined into one named logical document. New source uploads use `USER_ID/DOCUMENT_ID/FILE_ID/original.ext`; existing legacy objects remain unchanged. Sources can be added, reordered, viewed, and removed without entering the later composer or conversion workflow.
+Suggested future path:
+docs/screenshots/dashboard.png
 
-Phase 13 adds a protected, browser-only Document Composer at `/documents/:documentId/compose`. It expands images into one item and PDFs into independently selectable pages, provides lazy previews, and maintains one global local-session order across mixed sources. It does not persist selection/order, generate output files, convert documents, or enter the watermark workflow.
+Insert later with:
+![WatermarkMe dashboard](docs/screenshots/dashboard.png)
+-->
 
-Phase 14 adds a presentation-independent conversion engine beneath the Composer. The engine consumes only selected `ComposerItem` values in their current Composer order and returns typed, in-memory `Blob` artifacts. It supports ordered image-only selections as one PNG or JPEG artifact per image, transparent PNG to JPEG over a deterministic white background, image sources to PDF, native selected/reordered PDF-page copying, PDF-page rasterization to PNG/JPEG, and mixed image/PDF-page PDFs. Image bytes already matching a PNG or JPEG target pass through without unnecessary decoding or re-encoding. It exposes operation-local source caching, progress events, and `AbortSignal` cancellation without adding download or output-selection UI.
+## Built for safer sharing
 
-For PDF output, `pdf-lib` copies selected PDF pages without rasterizing them. Image-backed PDF pages use portrait or landscape A4, a 24-point margin, centered contain-fit placement, and no stretching or clipping. For PDF-to-image output, lazy-loaded PDF.js renders only selected pages at a default 2x scale capped at 4096 pixels on the longest edge. Generated artifacts remain in browser memory and are not uploaded or persisted. Phase 14 requires no database migration, RLS change, or Storage policy change.
+### Privacy-first
 
-Phase 15 integrates that engine into the existing Composer. Available PDF, PNG, and JPEG targets are derived from the exact selected content rather than exposed as unsupported choices. The output panel explains whether conversion creates one file or one image per selected PDF page, surfaces JPEG/alpha and rasterization warnings, reports real item progress, supports cancellation, and invalidates an old result as soon as selection, order, target, or document context changes.
+Stored originals remain in private, owner-scoped Storage. Generated conversion and watermark outputs stay local to your browser.
 
-Single artifacts use a temporary browser download URL. Multiple artifacts expose an explicit download action for each file and one locally generated ZIP using lazy-loaded `jszip`, avoiding uncontrolled automatic browser downloads. Image-only multi-output filenames come from each sanitized source name with the target extension; case-insensitive collisions receive deterministic `_002`, `_003`, ... suffixes. PDF-page image output retains the logical-document numbered naming convention. Generated Blobs, ZIPs, and download URLs remain session-local; they are never written to the database or Storage. Mixed image and PDF-page selections remain PDF-only.
+### Originals stay untouched
 
-Phase 16 adds **Continue to Watermark** beside the direct converted-file download for every current result. A small session-owned registry retains the exact `Blob` artifacts in JavaScript memory and places only an opaque handoff ID in route state. The existing `/documents/:documentId/watermark` workspace treats those generated bytes as authoritative, while ordinary legacy and nested single-source documents continue through their authenticated Storage source resolver. No intermediate download, re-upload, signed URL, database row, or Storage object is created.
+Composer, conversion, and watermarking produce separate output. They never overwrite the source document you uploaded.
 
-Generated images reuse the existing Canvas watermark settings and renderer. A homogeneous multi-image result uses one shared purpose, recipient, and appearance configuration, previews one decoded image at a time, produces every final image in conversion order, and downloads them through one ZIP. Generated PDFs pass their bytes directly to the existing `pdf-lib` watermark engine so pages remain native rather than being rasterized. Final watermarked results also remain in memory and are invalidated whenever their source or settings become stale.
+### Compose before sharing
 
-The handoff is deliberately ephemeral: refresh, a missing handoff, or an authenticated-user change makes the converted file unavailable and directs the user back to Composer to convert again. Direct Phase 15 download remains available. Phase 16 adds no browser persistence, upload, database migration, RLS change, or Storage-policy change.
+Combine images and selected PDF pages, leave out unnecessary content, and control the final order before creating a copy.
 
-Phase 17 adds cross-phase release-hardening coverage and cancels in-flight private source reads when Composer or Watermark Editor unmounts. Repository validation covers deterministic conversion/order, filename and ZIP safety, handoff ownership, legacy/nested source compatibility, migration/RLS invariants, cleanup wiring, and lazy-loading boundaries. Browser, live Supabase, responsive, and stress acceptance remain intentionally manual; follow [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md).
+### One continuous workflow
 
-## v0.1 capabilities
+Move from **Compose → Convert → Watermark → Download** without downloading and re-uploading an intermediate converted file.
 
-- Email and password authentication with required email confirmation
-- Persistent sessions and protected application routes
-- Private JPG, JPEG, PNG, and PDF uploads up to 10 MB
-- User-isolated document metadata through PostgreSQL Row Level Security
-- User-isolated files in a private Supabase Storage bucket
-- My Documents listing, document details, rename, delete, and private access
-- Purpose-based watermark generation with an editable recipient and text
-- Opacity, rotation, size, and nine fixed position controls
-- Natural-resolution PNG export for images
-- Multi-page PDF watermarking and PDF export
-- Responsive, keyboard-accessible interface
+## Why WatermarkMe?
 
-## v0.2 capabilities
+Identity and supporting documents are often shared for one specific purpose: a job application, bank verification, property rental, university admission, insurance, or another administrative request.
 
-The authoritative recovered and updated v0.2 specification is [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md).
+A generic copy does not explain why it was shared or who should use it. WatermarkMe helps make the intended use of a shared copy explicit by placing purpose, recipient, and date information on a separately generated file while preserving the original.
 
-Implemented scope includes:
+## How it works
 
-- Logical documents containing one or more source files
-- Multiple-image documents such as KTP front/back
-- Safe migration/backfill for existing v0.1 documents
-- Source-file ordering and management
-- PDF page selection and reordering
-- Document Composer preview
-- JPG/JPEG/PNG/PDF conversion workflows
-- Multiple images to PDF
-- Selected/reordered PDF pages to PDF
-- PDF pages to PNG/JPG
-- Mixed image + selected PDF pages to PDF where practical
-- Direct converter-to-watermark handoff using in-memory generated data
+1. **Upload a document** — keep one or more source files in a private logical document.
+2. **Compose what you need** — select images or PDF pages and put them in the right order.
+3. **Choose an output format** — generate PDF, PNG, or JPEG output in the browser.
+4. **Add a purpose-specific watermark** — choose the purpose and recipient, then adjust its appearance.
+5. **Download the generated copy** — save one file or a controlled ZIP for multiple outputs.
 
-Formats outside JPG/JPEG/PNG/PDF are intentionally out of scope for v0.2 unless the roadmap is explicitly changed.
-
-## Core privacy model
-
-WatermarkMe treats uploaded documents as sensitive personal data.
-
-- Supabase Storage remains private.
-- Database and Storage access are restricted to the authenticated owner.
-- The frontend uses only the Supabase project URL and anon key.
-- A Supabase `service_role` key must never be exposed to the browser.
-- Original uploads are immutable and are never overwritten.
-- Existing v0.1 Storage objects must not be moved merely to adopt the v0.2 data model.
-- Signed URLs provide short-lived access to private originals.
-- Watermarking runs in the browser.
-- v0.2 composition/conversion runs locally in the browser.
-- Generated and intermediate files are not uploaded to Supabase by default.
-
-The existing reproducible database and Storage security setup is defined in [`supabase/migrations/20260809000100_phase_3_secure_data_layer.sql`](supabase/migrations/20260809000100_phase_3_secure_data_layer.sql). v0.2 database changes must be introduced through new migrations rather than editing applied migrations.
-
-## Document model evolution
-
-### v0.1
+Composer and conversion are optional. A document with one persisted image or PDF source can open directly in the Watermark Editor.
 
 ```text
-Document
-└── one original Storage object
+Private original (private Supabase Storage)
+                    |
+                    v
+             Composer (optional)
+                    |
+                    v
+          Convert in browser memory
+              /             \
+             v               v
+         Download         Watermark
+                              |
+                              v
+                           Download
 ```
 
-### v0.2
+Generated files leave browser memory only when you explicitly download them; they are not uploaded back to Supabase.
+
+## Key features
+
+### Secure document management
+
+- Email/password authentication with confirmed-email access and protected routes
+- Private source storage and owner-scoped document metadata
+- Logical documents containing one or many source files
+- Separate or combined multi-file uploads
+- Add, remove, and reorder persisted sources
+- Rename and delete documents with explicit confirmation
+- Backward compatibility for legacy single-source documents and Storage paths
+
+### Document Composer
+
+- Multiple images and independently selectable PDF pages
+- Lazy PDF thumbnails and an active content preview
+- Select or deselect individual items
+- One ordered selection across images and pages from multiple sources
+- Drag reordering plus keyboard-accessible **Move earlier** and **Move later** controls
+- Mixed image and PDF-page composition for PDF output
+- Session-local composition that does not rewrite persisted source order
+
+### Conversion
+
+- PDF, PNG, and JPEG output derived from the current selection
+- Combined PDF or ordered multi-image output
+- Individual multi-output downloads and one **Download all as ZIP** action
+- Progress reporting, cancellation, retry, and stale-result protection
+- Same-format PNG/JPEG pass-through where re-encoding is unnecessary
+- Deterministic filenames and collision-safe ZIP contents
+
+### Watermarking
+
+- Six purpose presets: Job Application, Bank Verification, Property Rental, University Admission, Insurance, and Other
+- Recipient or organization, editable watermark text, and an automatically included session date
+- Opacity, rotation, relative size, and nine fixed positions
+- Image and multi-page PDF preview and generation
+- Shared-settings batch watermarking for generated image sets
+- One ZIP download for a completed watermarked image batch
+
+### Privacy safeguards
+
+- Immutable-original workflow
+- Browser-local generated and intermediate output
+- Private Supabase Storage with temporary authorized source access
+- PostgreSQL Row Level Security for owner isolation
+- No frontend service-role credential
+- No generated conversion or watermark upload
+
+## Document Composer
+
+Real documents are not always one file. An identity card may have a front and back, a supporting packet may contain several images, and a PDF may include pages that should not be shared.
+
+The Composer turns each image and each PDF page into a selectable item. You can prepare examples such as:
+
+- the front and back of an identity card;
+- several supporting-document images;
+- only selected pages from a PDF; or
+- an image followed by selected PDF pages in one ordered document.
+
+The order exists only for the current Composer session. Reordering or deselecting Composer items does not modify `document_files.sort_order`, the stored source files, or their metadata.
+
+<!--
+PRODUCT SCREENSHOT: DOCUMENT COMPOSER
+
+Recommended capture:
+- document with multiple sources
+- ideally image + multi-page PDF
+- several selected items
+- visible preview
+- visible selected order
+- demonstrate reordered content
+
+Suggested future path:
+docs/screenshots/document-composer.png
+
+Insert later with:
+![WatermarkMe Document Composer](docs/screenshots/document-composer.png)
+-->
+
+## Convert to the format you need
+
+Conversion follows the exact current Composer selection and order.
+
+| Selection | PDF | PNG | JPEG |
+| --- | --- | --- | --- |
+| Single image | ✅ | ✅ | ✅ |
+| Multiple images | ✅ Combined PDF | ✅ Multiple files | ✅ Multiple files |
+| Selected PDF pages | ✅ | ✅ Multiple files | ✅ Multiple files |
+| Images + PDF pages | ✅ | — | — |
+
+For PNG or JPEG multi-output, each artifact has its own download action and **Download all as ZIP** creates one archive through a single user action. PNG → PNG and JPEG → JPEG items pass through unchanged when possible, so a mixed image batch only re-encodes mismatched formats. Transparent PNG content converted to JPEG is composited onto a white background with a visible lossy/alpha warning.
+
+Mixed image and PDF-page selections intentionally remain PDF-only. Selected PDF pages are copied natively into PDF output, while PDF → PNG/JPEG uses browser-side PDF.js rasterization.
+
+<!--
+PRODUCT SCREENSHOT: CONVERSION RESULT
+
+Recommended capture:
+- two selected images converted to PNG or JPEG
+- result shows multiple generated files
+- individual Download buttons visible
+- Download All / ZIP visible
+- Continue to Watermark visible
+
+Suggested future path:
+docs/screenshots/conversion-result.png
+
+Insert later with:
+![WatermarkMe conversion result](docs/screenshots/conversion-result.png)
+-->
+
+## Purpose-specific watermarking
+
+Choose one of the built-in purposes, identify the recipient or organization, and refine the generated text. The current session date is included automatically. Appearance controls cover opacity, rotation, relative size, and nine positions, with a preview before generation.
+
+Converted output can continue directly into the Watermark Editor through an authenticated, session-owned in-memory handoff—no intermediate download or re-upload is needed.
+
+- **Multiple generated images:** one shared watermark configuration is applied to every artifact in order, and the completed files download together as one ZIP.
+- **Generated PDF:** the PDF remains a PDF and uses the native PDF watermark path rather than being converted into page images.
+- **Persisted single source:** images and PDFs can still enter watermarking directly without Composer.
+
+<!--
+PRODUCT SCREENSHOT: WATERMARK EDITOR
+
+Recommended capture:
+- visible document preview
+- purpose selector
+- recipient
+- watermark controls
+- visible watermark on preview
+- if possible use a multi-image generated result so Previous/Next or
+  batch state is visible
+
+Suggested future path:
+docs/screenshots/watermark-editor.png
+
+Insert later with:
+![WatermarkMe Watermark Editor](docs/screenshots/watermark-editor.png)
+-->
+
+## Privacy by design
+
+WatermarkMe separates persisted private originals from temporary generated output:
+
+| Data | Location | Lifecycle |
+| --- | --- | --- |
+| Original source files | Private Supabase Storage | Persist until the owner removes the source or document |
+| Document/source metadata | Supabase PostgreSQL with RLS | Persist for the authenticated owner |
+| Generated conversion output | Browser memory | Session-local; cleared when invalidated or the session is lost |
+| Generated watermark output | Browser memory | Available for explicit local download; not uploaded |
+
+Confirmed architectural invariants:
+
+- Composer, conversion, and watermarking never overwrite an original.
+- Generated output is not uploaded to Supabase Database or Storage.
+- The `documents` bucket is private.
+- Database and Storage policies enforce authenticated-owner isolation.
+- The frontend uses only the Supabase project URL and anon key—never a `service_role` key.
+- Stored originals are loaded through temporary authorized access when browser processing needs them.
+- Converter → Watermark handoff keeps generated `Blob` artifacts in JavaScript memory and passes only an opaque identifier through navigation state.
+- Refresh or an authenticated-user change intentionally expires the temporary handoff instead of falling back to a stored original.
+
+Generated conversion and watermark outputs stay local to your browser. Stored originals may be uploaded to private Supabase Storage, so WatermarkMe does not claim that uploaded source files never leave the device.
+
+## Supported files
+
+| Type | Input | Generated output |
+| --- | --- | --- |
+| JPEG | ✅ | ✅ |
+| PNG | ✅ | ✅ |
+| PDF | ✅ | ✅ |
+| ZIP | — | Multi-file download only |
+
+Each uploaded source must be non-empty and no larger than **10 MiB**. ZIP is a download package, not an upload or Composer source format.
+
+## Architecture
+
+### Frontend
+
+- React 19, TypeScript, and React Router
+- Vite 8 and Tailwind CSS 4
+
+### Platform
+
+- Supabase Auth
+- PostgreSQL with Row Level Security
+- Private Supabase Storage
+
+### Browser processing
+
+- Canvas for image conversion and watermark rendering
+- `pdf-lib` for PDF composition and watermark generation
+- Lazy-loaded `pdfjs-dist` for PDF previews and page rasterization
+- Lazy-loaded JSZip for controlled multi-file downloads
 
 ```text
-Logical Document
-├── Source File 1
-├── Source File 2
-└── Source File N
+React client
+|
++-- Authentication
+|      +-- Supabase Auth
+|
++-- Persisted documents
+|      +-- PostgreSQL + RLS
+|      +-- Private Storage
+|
++-- Browser processing
+       +-- Composer
+       +-- Conversion
+       +-- Watermark
+       +-- Explicit download
 ```
 
-Example:
+Generated artifacts flow through the browser-processing branch only; they do not flow back into persisted documents.
 
-```text
-KTP
-├── KTP Front.jpg
-└── KTP Back.jpg
-```
+## Technical highlights
 
-Existing v0.1 originals remain valid and are backfilled into the new source-file relation during the Phase 11 migration. They should not be physically moved.
+- **Multi-source logical documents:** a compatibility layer expands the original one-file model without moving legacy Storage objects.
+- **Source-scoped PDF page identity:** Composer items keep page identity stable across multiple PDFs, selection changes, and arbitrary ordering.
+- **Native mixed composition:** selected PDF pages are copied directly while images receive purpose-built PDF pages, preserving the requested mixed order.
+- **Ordered multi-artifact output:** every image artifact remains traceable to its Composer item, with deterministic, collision-safe names.
+- **In-memory workflow handoff:** conversion results become the authoritative Watermark Editor input without `localStorage`, IndexedDB, or Supabase persistence.
+- **Owner-enforced data isolation:** RLS and private Storage policies protect both logical documents and source files beyond frontend filtering.
+- **Cancellation and cleanup:** source reads, previews, conversion, and watermark generation observe cancellation; temporary URLs and PDF resources are released.
+- **Regression-oriented release hardening:** focused scripts exercise legacy compatibility, conversion order, stale results, ZIP safety, handoff ownership, and watermark rendering.
 
-## How v0.1 works
+## Getting started
 
-```text
-Register and confirm email
-          ↓
-Upload a private document
-          ↓
-Choose a purpose and recipient
-          ↓
-Customize and preview the watermark
-          ↓
-Download a new PNG or PDF copy
-```
+### Requirements
 
-Supported purposes are Job Application, Bank Verification, Property Rental, University Admission, Insurance, and Other.
-
-## v0.2 workflow
-
-```text
-Upload one or more private source files
-          ↓
-Select / reorder files or PDF pages
-          ↓
-Choose output format
-          ↓
-Compose / convert locally
-          ↓
-Download
-       or
-Continue directly to watermark
-          ↓
-Download final protected copy
-```
-
-Intermediate converted output stays in browser memory unless a later feature explicitly introduces saved generated versions.
-
-## Technology
-
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- Supabase Auth, PostgreSQL, and Storage
-- HTML Canvas API for image watermarking
-- `pdf-lib` for browser-based PDF watermarking/manipulation
-- Lazy-loaded `pdfjs-dist` for private, browser-side PDF page previews in the Composer
-- Lazy-loaded `jszip` for one controlled browser download of multi-image conversion output
-
-Additional v0.2 dependencies should be introduced only when needed. Heavy PDF preview/rendering code should be lazy-loaded when practical.
-
-## Run locally
-
-Requirements:
-
-- Node.js 20 or newer
+- Node.js `^20.19.0` or `>=22.12.0` (the supported range for the installed Vite version)
 - npm
 - A hosted Supabase project
 
-Clone and install:
+### Clone
 
 ```bash
 git clone https://github.com/FrhnSpwli/watermark-me.git
 cd watermark-me
+```
+
+### Install
+
+```bash
 npm install
 ```
+
+### Environment
 
 Create `.env.local` in the project root:
 
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
 ```
 
-Do not place a service-role key or database password in frontend environment variables.
+Use the project URL and anon key from your Supabase project. Do not add a service-role key or database password to frontend environment variables.
 
-Apply required Supabase migrations by following [`supabase/README.md`](supabase/README.md), then start the application:
+### Database and Storage
+
+Apply the SQL files in [`supabase/migrations`](supabase/migrations) in timestamp order through the Supabase SQL Editor. The repository is not currently linked to a Supabase CLI project. Follow [`supabase/README.md`](supabase/README.md) for the migration order, private bucket expectations, and post-migration checks.
+
+For local authentication, enable email confirmation and configure:
+
+- Site URL: `http://localhost:5173`
+- Redirect URL: `http://localhost:5173/auth/confirm`
+
+Add the equivalent production origin and `/auth/confirm` redirect before deployment.
+
+### Development
 
 ```bash
 npm run dev
 ```
 
-The default Vite development URL is `http://localhost:5173` unless another port is selected because it is already in use.
+Vite uses `http://localhost:5173` by default unless that port is unavailable.
 
-## Supabase Auth configuration
+### Validation
 
-For local development:
-
-- Email confirmation enabled
-- Site URL: `http://localhost:5173`
-- Redirect URL: `http://localhost:5173/auth/confirm`
-
-Add the equivalent production origin and `/auth/confirm` URL before deploying.
-
-## Available commands
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run strict TypeScript checks |
-| `npm run build` | Create a production build |
-| `npm run test:documents` | Validate document format and size rules |
-| `npm run test:phase11` | Check Phase 11 legacy-source compatibility |
-| `npm run test:phase12` | Check Phase 12 multi-file domain behavior |
-| `npm run test:phase13` | Check Composer item creation, selection, and global ordering |
-| `npm run test:phase14` | Check conversion planning, PDF generation, ordering, caching, and cancellation |
-| `npm run test:phase15` | Check output compatibility, filenames, stale-result keys, warnings, and ZIP contents |
-| `npm run test:phase16` | Check in-memory handoff authority, lifecycle, batch watermarking, filenames, and stale-result safety |
-| `npm run test:phase17` | Check cross-phase release, privacy, ordering, cleanup, and lazy-loading invariants |
-| `npm run test:purpose` | Check the purpose-based workflow |
-| `npm run test:watermark` | Check image watermark layout and rendering |
-| `npm run test:pdf-watermark` | Check PDF watermark generation |
-
-## Project structure
-
-```text
-src/
-├── components/       Reusable UI and feature components
-├── context/          Authentication context
-├── hooks/            Reusable React hooks
-├── lib/              Supabase and document/watermark utilities
-├── pages/            Route-level screens
-├── services/         Authentication and document operations
-├── types/            Shared TypeScript domain types
-└── utils/            Formatting helpers
-
-scripts/              Focused regression checks
-supabase/migrations/  Reproducible schema, RLS, and Storage policies
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm audit --audit-level=high
 ```
 
 ## Project status
 
-v0.1 implementation through Phase 9 and repository-level Phase 10 validation are complete. Final live browser acceptance remains documented in [`ROADMAP.md`](ROADMAP.md).
+**WatermarkMe v0.2 — Document Composer & Converter**
 
-The current development phase is:
+- ✅ Implemented
+- ✅ Manual acceptance complete
+- ✅ Release hardening complete
 
-```text
-Phase 17 - QA, Security, Performance & Release Hardening
-```
+Release highlights include multi-source private documents, image/PDF composition, browser-local conversion, controlled multi-file output, purpose-specific watermarking, and direct in-memory conversion → watermark handoff.
 
-Phase 17 repository validation is complete. Authenticated browser and live two-account Supabase evidence remains recorded in [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md). The recovered v0.2 specification is present on this documentation branch; its restoration remains pending review and merge under [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9).
+See [`ROADMAP.md`](ROADMAP.md) for development chronology. The active v0.2 architecture and behavior are documented in [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md).
 
-## Project documentation
+## Documentation
 
-- [`README.md`](README.md) — current project overview
-- [`ROADMAP.md`](ROADMAP.md) — active phase and status
-- [`MVP_BUILD_SPEC.md`](MVP_BUILD_SPEC.md) — historical v0.1 product/engineering specification
-- [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) — recovered historical specification updated to the authoritative as-built v0.2 contract
-- [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md) - live Supabase and browser acceptance runbook
-- [`AGENTS.md`](AGENTS.md) — rules for coding agents working on the repository
-- [`supabase/README.md`](supabase/README.md) — database and Storage setup
+| Document | Description |
+| --- | --- |
+| [`MVP_BUILD_SPEC.md`](MVP_BUILD_SPEC.md) | Original v0.1 MVP specification |
+| [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) | v0.2 as-built Composer & Converter specification |
+| [`ROADMAP.md`](ROADMAP.md) | Development roadmap and phase history |
+| [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md) | Release QA, security, privacy, and browser acceptance runbook |
+
+## Release snapshot
+
+At the v0.2 release checkpoint:
+
+- **577 regression checks** passing
+- Production build passing
+- **0 high-severity npm audit vulnerabilities**
+
+## Roadmap
+
+WatermarkMe v0.2 is complete. Future work is intentionally not committed to a new release scope; see [`ROADMAP.md`](ROADMAP.md) for documented candidates and project history.
 
 ---
 
