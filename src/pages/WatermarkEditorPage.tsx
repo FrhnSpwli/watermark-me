@@ -6,6 +6,7 @@ import { RouteLoadingScreen } from '../components/ui/RouteLoadingScreen'
 import { useWatermarkEditorInput } from '../hooks/useWatermarkEditorInput'
 import {
   canvasToPngBlob,
+  generateWatermarkedImageBlob,
   ImageWatermarkError,
   renderImageWatermark,
 } from '../lib/watermark/imageWatermark'
@@ -275,9 +276,6 @@ export function WatermarkEditorPage() {
           purposeState.sessionDate,
           generatedImageArtifacts.length,
           'png',
-        )
-        const { generateWatermarkedImageBlob } = await import(
-          '../lib/watermark/imageWatermark'
         )
         result = await watermarkGeneratedImageArtifacts({
           artifacts: generatedImageArtifacts,

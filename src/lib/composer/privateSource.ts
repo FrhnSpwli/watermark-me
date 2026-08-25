@@ -98,8 +98,9 @@ function decodeImage(objectUrl: string) {
 export async function loadPrivateImagePreview(
   signedUrl: string,
   expectedMimeType: string,
+  signal?: AbortSignal,
 ) {
-  const responseBlob = await loadPrivateSourceBlob(signedUrl)
+  const responseBlob = await loadPrivateSourceBlob(signedUrl, signal)
   const mimeType = SUPPORTED_IMAGE_MIME_TYPES.has(responseBlob.type)
     ? responseBlob.type
     : expectedMimeType
@@ -118,6 +119,7 @@ export async function loadPrivateImagePreview(
 
   try {
     const dimensions = await decodeImage(objectUrl)
+    throwSourceAbort(signal)
     return { ...dimensions, objectUrl }
   } catch (error) {
     URL.revokeObjectURL(objectUrl)
@@ -125,11 +127,16 @@ export async function loadPrivateImagePreview(
   }
 }
 
-export async function loadPrivatePdfBytes(signedUrl: string) {
-  const responseBlob = await loadPrivateSourceBlob(signedUrl)
+export async function loadPrivatePdfBytes(
+  signedUrl: string,
+  signal?: AbortSignal,
+) {
+  const responseBlob = await loadPrivateSourceBlob(signedUrl, signal)
 
   try {
-    return new Uint8Array(await responseBlob.arrayBuffer())
+    const bytes = new Uint8Array(await responseBlob.arrayBuffer())
+    throwSourceAbort(signal)
+    return bytes
   } catch {
     throw new ComposerSourceError(
       'The private PDF could not be read in this browser.',

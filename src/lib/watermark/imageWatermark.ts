@@ -544,12 +544,15 @@ async function decodeWithImageElement(blob: Blob): Promise<DecodedSourceImage> {
 
 export async function loadPrivateSourceImage(
   signedUrl: string,
+  signal?: AbortSignal,
 ): Promise<DecodedSourceImage> {
   let response: Response
 
   try {
-    response = await fetch(signedUrl, { credentials: 'omit' })
+    signal?.throwIfAborted()
+    response = await fetch(signedUrl, { credentials: 'omit', signal })
   } catch (error) {
+    signal?.throwIfAborted()
     console.error('[watermark] private image fetch failed', error)
     throw new ImageWatermarkError(
       'The private source image could not be downloaded. Check your connection and try again.',
@@ -565,14 +568,16 @@ export async function loadPrivateSourceImage(
   }
 
   const blob = await response.blob()
+  signal?.throwIfAborted()
 
-  return loadSourceImageBlob(blob)
+  return loadSourceImageBlob(blob, signal)
 }
 
 export async function loadSourceImageBlob(
   blob: Blob,
+  signal?: AbortSignal,
 ): Promise<DecodedSourceImage> {
-
+  signal?.throwIfAborted()
   if (!SUPPORTED_IMAGE_MIME_TYPES.has(blob.type)) {
     throw new ImageWatermarkError('This file is not a supported JPEG or PNG image.', 'unsupported')
   }
@@ -581,8 +586,9 @@ export async function loadSourceImageBlob(
     try {
       const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
 
-      if (!bitmap.width || !bitmap.height) {
+      if (signal?.aborted || !bitmap.width || !bitmap.height) {
         bitmap.close()
+        signal?.throwIfAborted()
         throw new ImageWatermarkError('The source image has invalid dimensions.', 'decode')
       }
 
@@ -593,6 +599,7 @@ export async function loadSourceImageBlob(
         dispose: () => bitmap.close(),
       }
     } catch (error) {
+      signal?.throwIfAborted()
       if (error instanceof ImageWatermarkError) {
         throw error
       }
@@ -601,7 +608,12 @@ export async function loadSourceImageBlob(
     }
   }
 
-  return decodeWithImageElement(blob)
+  const image = await decodeWithImageElement(blob)
+  if (signal?.aborted) {
+    image.dispose()
+    signal.throwIfAborted()
+  }
+  return image
 }
 
 export function canvasToPngBlob(
@@ -637,7 +649,7 @@ export async function generateWatermarkedImageBlob(
   settings: ImageWatermarkSettings,
   signal: AbortSignal,
 ) {
-  const image = await loadSourceImageBlob(sourceBlob)
+  const image = await loadSourceImageBlob(sourceBlob, signal)
   const canvas = document.createElement('canvas')
 
   try {

@@ -223,12 +223,15 @@ export async function inspectPdfBytes(bytes: Uint8Array) {
 
 export async function loadPrivatePdfSource(
   signedUrl: string,
+  signal?: AbortSignal,
 ): Promise<PrivatePdfSource> {
   let response: Response
 
   try {
-    response = await fetch(signedUrl, { credentials: 'omit' })
+    signal?.throwIfAborted()
+    response = await fetch(signedUrl, { credentials: 'omit', signal })
   } catch (error) {
+    signal?.throwIfAborted()
     console.error('[pdf-watermark] private PDF fetch failed', error)
     throw new PdfWatermarkError(
       'The private PDF could not be downloaded. Check your connection and try again.',
@@ -247,7 +250,9 @@ export async function loadPrivatePdfSource(
 
   try {
     bytes = new Uint8Array(await response.arrayBuffer())
+    signal?.throwIfAborted()
   } catch (error) {
+    signal?.throwIfAborted()
     console.error('[pdf-watermark] reading PDF response failed', error)
     throw toPdfWatermarkError(error, 'load')
   }
@@ -260,12 +265,18 @@ export async function createPdfWatermarkSource(bytes: Uint8Array) {
   return { bytes, pageCount: pages.length, pages }
 }
 
-export async function loadPdfWatermarkSourceBlob(blob: Blob) {
+export async function loadPdfWatermarkSourceBlob(
+  blob: Blob,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
   if (blob.type && blob.type !== 'application/pdf') {
     throw new PdfWatermarkError('The temporary converted file is not a PDF.', 'invalid')
   }
 
-  return createPdfWatermarkSource(new Uint8Array(await blob.arrayBuffer()))
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  signal?.throwIfAborted()
+  return createPdfWatermarkSource(bytes)
 }
 
 function normalizeWatermarkLines(text: string) {
