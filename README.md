@@ -41,6 +41,7 @@ Insert later with:
 -->
 
 ## Built for safer sharing
+![WatermarkMe landing page](docs/image.png)
 
 <table>
   <tr>
