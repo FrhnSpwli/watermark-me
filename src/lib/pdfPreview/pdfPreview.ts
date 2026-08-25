@@ -27,16 +27,25 @@ function normalizeRotation(rotation: number) {
   return ((rotation % 360) + 360) % 360
 }
 
-export async function loadPdfPreviewDocument(bytes: Uint8Array) {
+export async function loadPdfPreviewDocument(
+  bytes: Uint8Array,
+  signal?: AbortSignal,
+) {
   let loadingTask: PDFDocumentLoadingTask | null = null
 
   try {
+    signal?.throwIfAborted()
     loadingTask = getDocument({
       data: new Uint8Array(bytes),
       isEvalSupported: false,
     })
     const document = await loadingTask.promise
     loadingTask = null
+
+    if (signal?.aborted) {
+      await document.destroy()
+      signal.throwIfAborted()
+    }
 
     if (document.numPages < 1) {
       await document.destroy()
@@ -62,12 +71,15 @@ export async function loadPdfPreviewDocument(bytes: Uint8Array) {
 
 export async function getPdfPreviewPageMetadata(
   document: PdfPreviewDocument,
+  signal?: AbortSignal,
 ): Promise<ComposerPdfPageMetadata[]> {
   const pages: ComposerPdfPageMetadata[] = []
 
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    signal?.throwIfAborted()
     const page = await document.getPage(pageNumber)
     try {
+      signal?.throwIfAborted()
       const viewport = page.getViewport({ scale: 1 })
       pages.push({
         pageIndex: pageNumber - 1,

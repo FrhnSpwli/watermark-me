@@ -66,6 +66,7 @@ export async function rasterizePdfPages({
         try {
           const pdfDocument = await loadPdfPreviewDocument(
             new Uint8Array(await blob.arrayBuffer()),
+            signal,
           )
           liveDocuments.add(pdfDocument)
           return pdfDocument

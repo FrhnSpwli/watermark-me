@@ -64,6 +64,7 @@ export function DocumentComposerPage() {
 
   useEffect(() => {
     const requestedDocumentId = documentId ?? ''
+    const controller = new AbortController()
     let isActive = true
 
     const releaseResources = () => {
@@ -117,7 +118,11 @@ export function DocumentComposerPage() {
             const { loadPrivateImagePreview } = await import(
               '../lib/composer/privateSource'
             )
-            const preview = await loadPrivateImagePreview(signedUrl, source.mime_type)
+            const preview = await loadPrivateImagePreview(
+              signedUrl,
+              source.mime_type,
+              controller.signal,
+            )
 
             if (!isActive) {
               URL.revokeObjectURL(preview.objectUrl)
@@ -134,11 +139,17 @@ export function DocumentComposerPage() {
             }
           } else if (source.mime_type === 'application/pdf') {
             const { loadPrivatePdfBytes } = await import('../lib/composer/privateSource')
-            const bytes = await loadPrivatePdfBytes(signedUrl)
+            const bytes = await loadPrivatePdfBytes(
+              signedUrl,
+              controller.signal,
+            )
             const { getPdfPreviewPageMetadata, loadPdfPreviewDocument } = await import(
               '../lib/pdfPreview/pdfPreview'
             )
-            const pdfDocument = await loadPdfPreviewDocument(bytes)
+            const pdfDocument = await loadPdfPreviewDocument(
+              bytes,
+              controller.signal,
+            )
             pendingPdfDocument = pdfDocument
 
             if (!isActive) {
@@ -146,7 +157,10 @@ export function DocumentComposerPage() {
               return
             }
 
-            const pages = await getPdfPreviewPageMetadata(pdfDocument)
+            const pages = await getPdfPreviewPageMetadata(
+              pdfDocument,
+              controller.signal,
+            )
 
             if (!isActive) {
               await pdfDocument.destroy()
@@ -199,6 +213,7 @@ export function DocumentComposerPage() {
 
     return () => {
       isActive = false
+      controller.abort()
       releaseResources()
     }
   }, [documentId])

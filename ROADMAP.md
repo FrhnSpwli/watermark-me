@@ -23,7 +23,7 @@ Manual acceptance should confirm the final browser workflow, representative resp
 
 ## v0.2 — Document Composer & Converter
 
-**Active specification:** [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md)
+**Specification status:** `V0.2_DOCUMENT_COMPOSER.md` is absent from `main`; restoration is the release-documentation blocker tracked by [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9).
 
 v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical document model that can contain multiple source files and can be composed, reordered, selectively converted, and passed directly into watermarking without persisting intermediate generated files.
 
@@ -35,7 +35,7 @@ v0.2 expands WatermarkMe from a one-file-per-document workflow into a logical do
 | 14 | Conversion Engine | 🟡 Repository implementation complete; browser conversion acceptance remains |
 | 15 | Conversion Output UX | 🟡 Repository implementation complete; manual browser acceptance remains |
 | 16 | Composer/Converter → Watermark Integration | 🟡 Repository implementation complete; manual browser acceptance remains |
-| 17 | QA, Security & Performance | Not Started |
+| 17 | QA, Security & Performance | Repository validation complete; manual browser and live Supabase acceptance pending |
 
 ### Phase 11 — Multi-file Architecture & Safe Migration
 
@@ -64,6 +64,8 @@ Allow generated in-memory conversion output to continue directly into WatermarkM
 ### Phase 17 — QA, Security & Performance
 
 Validate multi-source ownership, migration compatibility, conversion correctness, browser memory/resource cleanup, large-document behavior, responsive composer UX, lazy loading, and original preservation.
+
+Repository hardening is complete: cross-phase checks cover conversion order and compatibility, multi-output and filename safety, generated handoff ownership, persisted legacy/nested source resolution, migration/RLS/Storage policy invariants, resource cleanup wiring, and lazy-loading boundaries. In-flight private source downloads are now aborted when Composer or Watermark Editor is left. These checks do not prove deployed RLS, private Storage isolation, real-browser memory behavior, responsive layout, or account-switch behavior. Complete the manual/live matrix in [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md) before release. Issue #9 must also be resolved before v0.2 is documentation-complete.
 
 ---
 

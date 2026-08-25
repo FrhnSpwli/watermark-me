@@ -8,6 +8,10 @@ import {
 } from '../services/documents'
 import type { DecodedSourceImage } from '../types/watermark'
 import type { PrivatePdfSource } from '../lib/watermark/pdfWatermark'
+import {
+  loadPrivateSourceImage,
+  loadSourceImageBlob,
+} from '../lib/watermark/imageWatermark'
 import type {
   WatermarkHandoffArtifact,
   WatermarkHandoffEntry,
@@ -102,6 +106,7 @@ export function useWatermarkEditorInput({
   const [previewLoading, setPreviewLoading] = useState(false)
 
   useEffect(() => {
+    const controller = new AbortController()
     let isActive = true
     let persistedImage: DecodedSourceImage | null = null
     let failureStage: LoadStage = 'document'
@@ -157,6 +162,7 @@ export function useWatermarkEditorInput({
             )
             const nextPdf = await loadPdfWatermarkSourceBlob(
               resolution.handoff.artifacts[0].blob,
+              controller.signal,
             )
             if (isActive) {
               setPdfSource(nextPdf)
@@ -208,10 +214,10 @@ export function useWatermarkEditorInput({
         if (resolution.kind === 'image') {
           failureStage = 'image'
           if (isActive) setStage('image')
-          const { loadPrivateSourceImage } = await import(
-            '../lib/watermark/imageWatermark'
+          persistedImage = await loadPrivateSourceImage(
+            signedUrl,
+            controller.signal,
           )
-          persistedImage = await loadPrivateSourceImage(signedUrl)
           if (!isActive) {
             persistedImage.dispose()
             persistedImage = null
@@ -230,7 +236,10 @@ export function useWatermarkEditorInput({
           const { loadPrivatePdfSource } = await import(
             '../lib/watermark/pdfWatermark'
           )
-          const nextPdf = await loadPrivatePdfSource(signedUrl)
+          const nextPdf = await loadPrivatePdfSource(
+            signedUrl,
+            controller.signal,
+          )
           if (isActive) {
             setPdfSource(nextPdf)
             setInput({
@@ -268,6 +277,7 @@ export function useWatermarkEditorInput({
 
     return () => {
       isActive = false
+      controller.abort()
       persistedImage?.dispose()
     }
   }, [documentId, handoffId, reloadRevision, resolveHandoff])
@@ -278,6 +288,7 @@ export function useWatermarkEditorInput({
     }
 
     const artifact = input.artifacts[activeArtifactIndex]
+    const controller = new AbortController()
     let isActive = true
     let decodedImage: DecodedSourceImage | null = null
     void Promise.resolve().then(() => {
@@ -288,8 +299,7 @@ export function useWatermarkEditorInput({
       }
     })
 
-    void import('../lib/watermark/imageWatermark')
-      .then(({ loadSourceImageBlob }) => loadSourceImageBlob(artifact.blob))
+    void loadSourceImageBlob(artifact.blob, controller.signal)
       .then((image) => {
         decodedImage = image
         if (!isActive) {
@@ -315,6 +325,7 @@ export function useWatermarkEditorInput({
 
     return () => {
       isActive = false
+      controller.abort()
       decodedImage?.dispose()
     }
   }, [activeArtifactIndex, input])
