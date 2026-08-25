@@ -1,3 +1,5 @@
+import type { ConversionArtifact } from '../../types/conversion'
+
 interface DownloadArtifact {
   blob: Blob
 }
@@ -13,6 +15,7 @@ export function getArtifactDownload(
 
   const artifact = artifacts[index]
   const filename = filenames[index]
+
   return artifact && filename ? { blob: artifact.blob, filename } : null
 }
 
@@ -47,6 +50,7 @@ export async function createArtifactsZip(
   const artifactBuffers = await Promise.all(
     artifacts.map((artifact) => artifact.blob.arrayBuffer()),
   )
+
   artifactBuffers.forEach((buffer, index) => {
     zip.file(filenames[index], buffer)
   })
