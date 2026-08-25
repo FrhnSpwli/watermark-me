@@ -1,10 +1,28 @@
-# WatermarkMe
-
-**Privacy-first document watermarking**
-
-**Protect your identity before sharing it.**
-
-WatermarkMe helps you create purpose-specific copies of sensitive documents. Compose images and selected PDF pages, convert them into the format you need, apply a watermark, and download the result while keeping every stored original unchanged.
+<div align="center">
+  <img src="src/public/assets/logo.png" alt="WatermarkMe logo" width="104" />
+  <h1>WatermarkMe</h1>
+  <p><strong>Privacy-first document watermarking</strong></p>
+  <h3>Protect your identity before sharing it.</h3>
+  <p>
+    Create purpose-specific copies of sensitive documents. Compose images and
+    selected PDF pages, convert them into the format you need, apply a watermark,
+    and download the result while every stored original remains unchanged.
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/React_19-4f46e5?style=flat-square&logo=react&logoColor=white" alt="React 19" />
+    <img src="https://img.shields.io/badge/TypeScript_strict-475569?style=flat-square&logo=typescript&logoColor=white" alt="Strict TypeScript" />
+    <img src="https://img.shields.io/badge/Supabase-private_Storage_%2B_RLS-059669?style=flat-square&logo=supabase&logoColor=white" alt="Supabase private Storage and RLS" />
+    <img src="https://img.shields.io/badge/generated_outputs-browser--local-4f46e5?style=flat-square" alt="Generated outputs stay browser-local" />
+  </p>
+  <p>
+    <a href="#why-watermarkme">Why WatermarkMe</a> ·
+    <a href="#document-composer">Composer</a> ·
+    <a href="#convert-to-the-format-you-need">Conversion</a> ·
+    <a href="#purpose-specific-watermarking">Watermarking</a> ·
+    <a href="#privacy-by-design">Privacy</a> ·
+    <a href="#getting-started">Get started</a>
+  </p>
+</div>
 
 <!--
 PRODUCT SCREENSHOT: DASHBOARD / PRODUCT OVERVIEW
@@ -24,27 +42,37 @@ Insert later with:
 
 ## Built for safer sharing
 
-### Privacy-first
-
-Stored originals remain in private, owner-scoped Storage. Generated conversion and watermark outputs stay local to your browser.
-
-### Originals stay untouched
-
-Composer, conversion, and watermarking produce separate output. They never overwrite the source document you uploaded.
-
-### Compose before sharing
-
-Combine images and selected PDF pages, leave out unnecessary content, and control the final order before creating a copy.
-
-### One continuous workflow
-
-Move from **Compose → Convert → Watermark → Download** without downloading and re-uploading an intermediate converted file.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Private by design</strong><br />
+      Stored originals stay in private, owner-scoped Storage. Generated conversion and watermark outputs stay in browser memory.
+    </td>
+    <td width="50%" valign="top">
+      <strong>Originals stay untouched</strong><br />
+      Composer, conversion, and watermarking always create separate output instead of modifying an uploaded source.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Compose only what is needed</strong><br />
+      Combine images and selected PDF pages, leave out unnecessary content, and control the final order.
+    </td>
+    <td width="50%" valign="top">
+      <strong>One continuous workflow</strong><br />
+      Move from Compose → Convert → Watermark → Download without an intermediate download and re-upload.
+    </td>
+  </tr>
+</table>
 
 ## Why WatermarkMe?
 
 Identity and supporting documents are often shared for one specific purpose: a job application, bank verification, property rental, university admission, insurance, or another administrative request.
 
-A generic copy does not explain why it was shared or who should use it. WatermarkMe helps make the intended use of a shared copy explicit by placing purpose, recipient, and date information on a separately generated file while preserving the original.
+A generic copy does not explain why it was shared or who should use it. WatermarkMe creates a separate copy that can carry purpose, recipient, and date context—helping make the intended use explicit without changing the original document.
+
+> [!NOTE]
+> A watermark is context, not a guarantee against misuse. WatermarkMe is designed to make a copy's intended purpose clearer while preserving a privacy-first document workflow.
 
 ## How it works
 
@@ -56,23 +84,24 @@ A generic copy does not explain why it was shared or who should use it. Watermar
 
 Composer and conversion are optional. A document with one persisted image or PDF source can open directly in the Watermark Editor.
 
-```text
-Private original (private Supabase Storage)
-                    |
-                    v
-             Composer (optional)
-                    |
-                    v
-          Convert in browser memory
-              /             \
-             v               v
-         Download         Watermark
-                              |
-                              v
-                           Download
+```mermaid
+flowchart LR
+    A["Private original<br/>Private Supabase Storage"] -->|Temporary authorized access| B["Composer<br/>Optional"]
+    A -->|Single persisted source| E
+    B --> C["Convert<br/>Browser memory"]
+    C --> D["Download"]
+    C --> E["Watermark<br/>Browser memory"]
+    E --> F["Download"]
+
+    classDef persisted fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b
+    classDef browser fill:#f8fafc,stroke:#64748b,color:#0f172a
+    classDef action fill:#ecfdf5,stroke:#059669,color:#064e3b
+    class A persisted
+    class B,C,E browser
+    class D,F action
 ```
 
-Generated files leave browser memory only when you explicitly download them; they are not uploaded back to Supabase.
+Generated files are exposed outside the workflow only through an explicit download; they are not uploaded back to Supabase.
 
 ## Key features
 
@@ -86,7 +115,7 @@ Generated files leave browser memory only when you explicitly download them; the
 - Rename and delete documents with explicit confirmation
 - Backward compatibility for legacy single-source documents and Storage paths
 
-### Document Composer
+### Composition and preview
 
 - Multiple images and independently selectable PDF pages
 - Lazy PDF thumbnails and an active content preview
@@ -134,7 +163,8 @@ The Composer turns each image and each PDF page into a selectable item. You can 
 - only selected pages from a PDF; or
 - an image followed by selected PDF pages in one ordered document.
 
-The order exists only for the current Composer session. Reordering or deselecting Composer items does not modify `document_files.sort_order`, the stored source files, or their metadata.
+> [!IMPORTANT]
+> Composer order is intentionally session-local. Reordering or deselecting items does not modify `document_files.sort_order`, stored source files, or source metadata.
 
 <!--
 PRODUCT SCREENSHOT: DOCUMENT COMPOSER
@@ -156,7 +186,7 @@ Insert later with:
 
 ## Convert to the format you need
 
-Conversion follows the exact current Composer selection and order.
+Conversion follows the exact current Composer selection and order. The interface derives compatible targets from that selection, so unsupported formats are not presented as actions that fail later.
 
 | Selection | PDF | PNG | JPEG |
 | --- | --- | --- | --- |
@@ -226,6 +256,9 @@ WatermarkMe separates persisted private originals from temporary generated outpu
 | Generated conversion output | Browser memory | Session-local; cleared when invalidated or the session is lost |
 | Generated watermark output | Browser memory | Available for explicit local download; not uploaded |
 
+> [!IMPORTANT]
+> **Generated conversion and watermark outputs stay local to the browser.** Stored originals may be uploaded to private Supabase Storage, so WatermarkMe does not make the inaccurate claim that source files never leave the device.
+
 Confirmed architectural invariants:
 
 - Composer, conversion, and watermarking never overwrite an original.
@@ -236,8 +269,6 @@ Confirmed architectural invariants:
 - Stored originals are loaded through temporary authorized access when browser processing needs them.
 - Converter → Watermark handoff keeps generated `Blob` artifacts in JavaScript memory and passes only an opaque identifier through navigation state.
 - Refresh or an authenticated-user change intentionally expires the temporary handoff instead of falling back to a stored original.
-
-Generated conversion and watermark outputs stay local to your browser. Stored originals may be uploaded to private Supabase Storage, so WatermarkMe does not claim that uploaded source files never leave the device.
 
 ## Supported files
 
@@ -270,35 +301,41 @@ Each uploaded source must be non-empty and no larger than **10 MiB**. ZIP is a d
 - Lazy-loaded `pdfjs-dist` for PDF previews and page rasterization
 - Lazy-loaded JSZip for controlled multi-file downloads
 
-```text
-React client
-|
-+-- Authentication
-|      +-- Supabase Auth
-|
-+-- Persisted documents
-|      +-- PostgreSQL + RLS
-|      +-- Private Storage
-|
-+-- Browser processing
-       +-- Composer
-       +-- Conversion
-       +-- Watermark
-       +-- Explicit download
+```mermaid
+flowchart TB
+    Client["React client"] --> Auth["Supabase Auth"]
+    Client --> Persisted["Persisted documents"]
+    Persisted --> DB["PostgreSQL + RLS"]
+    Persisted --> Storage["Private Storage"]
+    Client --> Browser["Browser processing"]
+    Browser --> Composer["Composer"]
+    Browser --> Convert["Conversion"]
+    Browser --> Watermark["Watermark"]
+    Convert --> Download["Explicit download"]
+    Watermark --> Download
+
+    classDef client fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b
+    classDef platform fill:#f8fafc,stroke:#64748b,color:#0f172a
+    classDef browser fill:#ecfdf5,stroke:#059669,color:#064e3b
+    class Client client
+    class Auth,Persisted,DB,Storage platform
+    class Browser,Composer,Convert,Watermark,Download browser
 ```
 
 Generated artifacts flow through the browser-processing branch only; they do not flow back into persisted documents.
 
 ## Technical highlights
 
-- **Multi-source logical documents:** a compatibility layer expands the original one-file model without moving legacy Storage objects.
-- **Source-scoped PDF page identity:** Composer items keep page identity stable across multiple PDFs, selection changes, and arbitrary ordering.
-- **Native mixed composition:** selected PDF pages are copied directly while images receive purpose-built PDF pages, preserving the requested mixed order.
-- **Ordered multi-artifact output:** every image artifact remains traceable to its Composer item, with deterministic, collision-safe names.
-- **In-memory workflow handoff:** conversion results become the authoritative Watermark Editor input without `localStorage`, IndexedDB, or Supabase persistence.
-- **Owner-enforced data isolation:** RLS and private Storage policies protect both logical documents and source files beyond frontend filtering.
-- **Cancellation and cleanup:** source reads, previews, conversion, and watermark generation observe cancellation; temporary URLs and PDF resources are released.
-- **Regression-oriented release hardening:** focused scripts exercise legacy compatibility, conversion order, stale results, ZIP safety, handoff ownership, and watermark rendering.
+| Engineering decision | Why it matters |
+| --- | --- |
+| **Multi-source logical documents** | Expands the original one-file model without moving or rewriting legacy Storage objects. |
+| **Source-scoped PDF page identity** | Keeps page identity stable across multiple PDFs, selection changes, and arbitrary ordering. |
+| **Native mixed PDF composition** | Copies selected PDF pages directly while creating new pages only for images. |
+| **Ordered multi-artifact output** | Keeps every generated image traceable to its Composer item with deterministic, collision-safe names. |
+| **In-memory workflow handoff** | Makes converted bytes authoritative in the Watermark Editor without `localStorage`, IndexedDB, or Supabase persistence. |
+| **Owner-enforced isolation** | Protects logical documents and source objects with RLS and private Storage policies beyond frontend filtering. |
+| **Cancellation and cleanup** | Aborts stale work and releases temporary object URLs, canvases, and PDF resources. |
+| **Release regression suite** | Exercises legacy compatibility, conversion order, stale results, ZIP safety, handoff ownership, and watermark rendering. |
 
 ## Getting started
 
@@ -363,11 +400,9 @@ npm audit --audit-level=high
 
 ## Project status
 
-**WatermarkMe v0.2 — Document Composer & Converter**
-
-- ✅ Implemented
-- ✅ Manual acceptance complete
-- ✅ Release hardening complete
+| Release | Implementation | Acceptance | Hardening |
+| --- | --- | --- | --- |
+| **WatermarkMe v0.2 — Document Composer & Converter** | ✅ Complete | ✅ Complete | ✅ Complete |
 
 Release highlights include multi-source private documents, image/PDF composition, browser-local conversion, controlled multi-file output, purpose-specific watermarking, and direct in-memory conversion → watermark handoff.
 
@@ -384,11 +419,9 @@ See [`ROADMAP.md`](ROADMAP.md) for development chronology. The active v0.2 archi
 
 ## Release snapshot
 
-At the v0.2 release checkpoint:
-
-- **577 regression checks** passing
-- Production build passing
-- **0 high-severity npm audit vulnerabilities**
+| Regression checks | Production build | High-severity audit findings |
+| ---: | :---: | ---: |
+| **577 passing** | **Passing** | **0** |
 
 ## Roadmap
 
@@ -396,4 +429,7 @@ WatermarkMe v0.2 is complete. Future work is intentionally not committed to a ne
 
 ---
 
-Maintained by [FrhnSpwli](https://github.com/FrhnSpwli).
+<p align="center">
+  Built as a privacy-first document workflow · Maintained by
+  <a href="https://github.com/FrhnSpwli">FrhnSpwli</a>
+</p>
