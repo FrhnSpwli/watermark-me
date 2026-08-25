@@ -4,7 +4,7 @@ Repository checks are evidence about committed code. They do not prove the deplo
 
 Current release status: **Repository Validation Complete - Manual Acceptance Pending**.
 
-Release-documentation blocker: [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9) must be resolved before v0.2 is release-complete. Do not reconstruct that specification in Phase 17.
+Documentation status: [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) has been recovered from historical Git content and updated on its dedicated documentation branch. [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9) closes only after that restoration is reviewed and merged.
 
 ## Read-only live database checks
 
