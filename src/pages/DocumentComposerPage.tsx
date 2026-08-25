@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ComposerActivePreview } from '../components/composer/ComposerActivePreview'
 import { ComposerConversionPanel } from '../components/composer/ComposerConversionPanel'
 import { ComposerSelectedOrder } from '../components/composer/ComposerSelectedOrder'
@@ -7,6 +7,7 @@ import { ComposerSourceBrowser } from '../components/composer/ComposerSourceBrow
 import { PageHeader } from '../components/ui/PageHeader'
 import { RouteLoadingScreen } from '../components/ui/RouteLoadingScreen'
 import { useComposerConversion } from '../hooks/useComposerConversion'
+import { useWatermarkHandoff } from '../hooks/useWatermarkHandoff'
 import {
   appendComposerItems,
   createComposerItems,
@@ -27,6 +28,7 @@ import type {
   ComposerSourceLoadStatus,
 } from '../types/composer'
 import type { DocumentFileRecord, DocumentRecord } from '../types/documents'
+import { createWatermarkNavigationState } from '../lib/watermark/watermarkHandoff'
 
 function sortSources(sources: DocumentFileRecord[]) {
   return [...sources].sort(
@@ -42,6 +44,8 @@ function getSourceLoadMessage(error: unknown) {
 
 export function DocumentComposerPage() {
   const { documentId } = useParams<{ documentId: string }>()
+  const navigate = useNavigate()
+  const { createHandoff } = useWatermarkHandoff()
   const imageUrlResources = useRef(new Map<string, string>())
   const pdfDocumentResources = useRef(new Map<string, PdfPreviewDocument>())
   const [document, setDocument] = useState<DocumentRecord | null>(null)
@@ -56,6 +60,7 @@ export function DocumentComposerPage() {
     new Map<string, PdfPreviewDocument>(),
   )
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
+  const [handoffError, setHandoffError] = useState<string | null>(null)
 
   useEffect(() => {
     const requestedDocumentId = documentId ?? ''
@@ -217,6 +222,29 @@ export function DocumentComposerPage() {
     items,
     sourcesReady,
   })
+  const handleContinueToWatermark = () => {
+    const success = conversionController.currentSuccess
+    if (!document || !success) {
+      return
+    }
+
+    try {
+      const handoffId = createHandoff({
+        documentId: document.id,
+        documentName: document.name,
+        result: success.result,
+        filenames: success.filenames,
+      })
+      setHandoffError(null)
+      navigate(`/documents/${document.id}/watermark`, {
+        state: createWatermarkNavigationState(handoffId),
+      })
+    } catch {
+      setHandoffError(
+        'The converted output could not be opened for watermarking. Convert it again and retry.',
+      )
+    }
+  }
 
   if (loadedDocumentId !== (documentId ?? '')) {
     return <RouteLoadingScreen message="Loading Composer..." />
@@ -251,8 +279,8 @@ export function DocumentComposerPage() {
 
       <div className="mt-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <PageHeader
-          description="Choose images and PDF pages, arrange one global order, then convert and download a browser-only result. Originals and source metadata stay unchanged."
-          eyebrow="Phase 15 - conversion output"
+          description="Choose images and PDF pages, arrange one global order, then convert for a direct download or continue into browser-only watermarking. Originals and source metadata stay unchanged."
+          eyebrow="Phase 16 - converter to watermark"
           title={document.name}
         />
         <div
@@ -333,6 +361,10 @@ export function DocumentComposerPage() {
               />
               <ComposerConversionPanel
                 controller={conversionController}
+                handoffError={
+                  conversionController.currentSuccess ? handoffError : null
+                }
+                onContinueToWatermark={handleContinueToWatermark}
                 sourcesReady={sourcesReady}
               />
             </div>
