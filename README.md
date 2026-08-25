@@ -14,7 +14,7 @@ WatermarkMe helps users prepare safer copies of identity and supporting document
 
 The v0.1 workflow lets users upload a private original, choose why it is being shared, customize a watermark, and download a separate watermarked copy. Original stored documents are never overwritten. Image and PDF watermarking run locally in the browser, and generated copies are downloaded directly without being uploaded back to Supabase.
 
-The next planned milestone, **v0.2 — Document Composer & Converter**, expands a document from a single physical file into a logical document that can contain multiple private source files. This enables use cases such as a front/back identity card, page selection from PDFs, source/page reordering, and local conversion between supported image/PDF formats.
+The **v0.2 — Document Composer & Converter** release expands a document from a single physical file into a logical document that can contain multiple private source files. This enables use cases such as a front/back identity card, page selection from PDFs, source/page reordering, and local conversion between supported image/PDF formats.
 
 Phase 11 introduces a backward-compatible `document_files` relation that backfills each legacy v0.1 document into exactly one source record while keeping storage paths, metadata, and ownership semantics intact.
 
@@ -52,11 +52,11 @@ Phase 17 adds cross-phase release-hardening coverage and cancels in-flight priva
 - Multi-page PDF watermarking and PDF export
 - Responsive, keyboard-accessible interface
 
-## Planned v0.2 capabilities
+## v0.2 capabilities
 
-The active v0.2 plan is documented in [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md).
+The authoritative recovered and updated v0.2 specification is [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md).
 
-Planned scope includes:
+Implemented scope includes:
 
 - Logical documents containing one or more source files
 - Multiple-image documents such as KTP front/back
@@ -85,12 +85,12 @@ WatermarkMe treats uploaded documents as sensitive personal data.
 - Existing v0.1 Storage objects must not be moved merely to adopt the v0.2 data model.
 - Signed URLs provide short-lived access to private originals.
 - Watermarking runs in the browser.
-- v0.2 composition/conversion should also run locally where practical.
+- v0.2 composition/conversion runs locally in the browser.
 - Generated and intermediate files are not uploaded to Supabase by default.
 
 The existing reproducible database and Storage security setup is defined in [`supabase/migrations/20260809000100_phase_3_secure_data_layer.sql`](supabase/migrations/20260809000100_phase_3_secure_data_layer.sql). v0.2 database changes must be introduced through new migrations rather than editing applied migrations.
 
-## Current and target document model
+## Document model evolution
 
 ### v0.1
 
@@ -99,7 +99,7 @@ Document
 └── one original Storage object
 ```
 
-### v0.2 target
+### v0.2
 
 ```text
 Logical Document
@@ -134,7 +134,7 @@ Download a new PNG or PDF copy
 
 Supported purposes are Job Application, Bank Verification, Property Rental, University Admission, Insurance, and Other.
 
-## v0.2 target workflow
+## v0.2 workflow
 
 ```text
 Upload one or more private source files
@@ -152,7 +152,7 @@ Continue directly to watermark
 Download final protected copy
 ```
 
-Intermediate converted output should stay in browser memory unless a later feature explicitly introduces saved generated versions.
+Intermediate converted output stays in browser memory unless a later feature explicitly introduces saved generated versions.
 
 ## Technology
 
@@ -259,14 +259,14 @@ The current development phase is:
 Phase 17 - QA, Security, Performance & Release Hardening
 ```
 
-Phase 17 repository validation is complete. Authenticated browser and live two-account Supabase acceptance remain pending and are documented in [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md). The missing v0.2 specification remains a release-documentation blocker tracked by [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9); v0.2 is not release-complete while that issue remains open.
+Phase 17 repository validation is complete. Authenticated browser and live two-account Supabase evidence remains recorded in [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md). The recovered v0.2 specification is present on this documentation branch; its restoration remains pending review and merge under [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9).
 
 ## Project documentation
 
 - [`README.md`](README.md) — current project overview
 - [`ROADMAP.md`](ROADMAP.md) — active phase and status
-- [`V0.1_MVP_BUILD_SPEC.md`](V0.1_MVP_BUILD_SPEC.md) — historical v0.1 product/engineering specification
-- `V0.2_DOCUMENT_COMPOSER.md` - intended v0.2 architecture document; currently missing and tracked by [Issue #9](https://github.com/FrhnSpwli/watermark-me/issues/9)
+- [`MVP_BUILD_SPEC.md`](MVP_BUILD_SPEC.md) — historical v0.1 product/engineering specification
+- [`V0.2_DOCUMENT_COMPOSER.md`](V0.2_DOCUMENT_COMPOSER.md) — recovered historical specification updated to the authoritative as-built v0.2 contract
 - [`PHASE17_RELEASE_ACCEPTANCE.md`](PHASE17_RELEASE_ACCEPTANCE.md) - live Supabase and browser acceptance runbook
 - [`AGENTS.md`](AGENTS.md) — rules for coding agents working on the repository
 - [`supabase/README.md`](supabase/README.md) — database and Storage setup
